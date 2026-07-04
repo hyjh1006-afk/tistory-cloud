@@ -98,12 +98,19 @@ def push_state() -> str:
         if current.status_code == 200:
             sha = current.json().get("sha")
 
+        # committer를 명시하지 않으면 계정 이메일이 공개 커밋에 노출된다
+        bot_identity = {
+            "name": "tistory-cloud-bot",
+            "email": "287627535+hyjh1006-afk@users.noreply.github.com",
+        }
         body = {
             "message": f"update {repo_path}",
             "content": base64.b64encode(
                 local_path.read_text(encoding="utf-8").encode("utf-8")
             ).decode("ascii"),
             "branch": branch,
+            "committer": bot_identity,
+            "author": bot_identity,
         }
         if sha:
             body["sha"] = sha
