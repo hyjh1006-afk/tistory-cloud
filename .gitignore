@@ -1,7 +1,7 @@
-# 로컬 실행 흔적 (클라우드 상태는 state/ 폴더를 GitHub API로 갱신)
-last_number.json
-used_posts.json
-reddit_daily.json
+# 로컬 실행 흔적만 제외 — 루트의 파일만! (state/ 폴더는 커밋되어야 함)
+/last_number.json
+/used_posts.json
+/reddit_daily.json
 output/
 logs/
 __pycache__/
