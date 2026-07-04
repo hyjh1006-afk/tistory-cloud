@@ -1,8 +1,7 @@
 """괴담 글 생성기 — 폰에서 어디서나 쓰는 클라우드 버전.
 
 - 버튼 한 번: Reddit 수집 → Gemini 번역 → 티스토리용 글 완성
-- 매일 자동 생성: schedule.json 시간표대로 GitHub Actions가 만들어 대기 목록에 쌓음
-- 만들어진 글은 전부 "대기 중인 글" 목록에 → 복사해서 올리고 [올렸음]으로 제거
+- 만들어진 글은 "대기 중인 글" 목록에 → 복사해서 올리고 [올렸음]으로 삭제 (가볍게 유지)
 """
 
 import json
@@ -164,7 +163,7 @@ with col_btn:
         st.rerun()
 
 if not outputs:
-    st.caption("대기 중인 글이 없어요. 자동 생성 시간이 되거나 위 버튼으로 만들면 여기 쌓입니다.")
+    st.caption("대기 중인 글이 없어요. 위 버튼으로 만들면 여기 나타납니다.")
 
 for index, item in enumerate(outputs):
     expanded = index == 0
@@ -196,6 +195,6 @@ for index, item in enumerate(outputs):
 
 st.divider()
 st.caption(
-    "자동 생성 시간표는 GitHub의 schedule.json에서 바꿀 수 있어요 (한국시간, 30분 단위). "
+    "티스토리에 올린 뒤 [올렸음]을 누르면 글 데이터가 삭제됩니다 (번호·사용 기록만 유지). "
     "글에 들어간 Reddit 원문은 즉시 기록되어 다시 나오지 않습니다."
 )
