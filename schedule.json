@@ -1,5 +1,5 @@
 {
   "_설명": "자동 글 생성 시간표 (한국시간, 30분 단위). times=두줄괴담, nosleep_times=단편괴담. 비우면 자동 생성 안 함.",
   "times": ["07:00"],
-  "nosleep_times": []
+  "nosleep_times": ["07:30"]
 }
