@@ -4,7 +4,9 @@ Reddit 수집 → Gemini 번역 → 티스토리용 HTML까지 버튼 한 번.
 번호/사용 기록은 GitHub 저장소(state/)에 보존된다.
 """
 
+import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -69,6 +71,19 @@ if st.button("⚡ 글 생성", type="primary", use_container_width=True):
                 start_number_override=int(start_number) or None,
             )
             html = Path(result["output_paths"]["html"]).read_text(encoding="utf-8")
+            # 폰이 결과 화면을 놓쳐도 다시 열면 복구되도록 결과도 함께 저장
+            github_state.LAST_OUTPUT_PATH.write_text(
+                json.dumps(
+                    {
+                        "title": result["title"],
+                        "blog_range": result["blog_range"],
+                        "html": html,
+                        "created_at": datetime.now().isoformat(timespec="seconds"),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
             try:
                 sync_msg = github_state.push_state()
             except Exception as exc:
@@ -87,25 +102,40 @@ if st.button("⚡ 글 생성", type="primary", use_container_width=True):
     if "result" in st.session_state:
         st.rerun()
 
-if "result" in st.session_state:
-    r = st.session_state["result"]
-    st.success(f"**{r['title']}** 생성 완료")
-    st.caption(r["sync"])
+def _show_output(title: str, html: str, blog_range: str, sync_msg: str = "") -> None:
+    st.success(f"**{title}** 생성 완료")
+    if sync_msg:
+        st.caption(sync_msg)
 
     st.subheader("티스토리에 붙여넣을 HTML")
     st.caption("오른쪽 위 복사 아이콘 → 티스토리 앱 글쓰기(HTML 모드)에 붙여넣기")
-    st.code(r["html"], language="html")
+    st.code(html, language="html")
 
     with st.expander("미리보기"):
-        st.html(r["html"])
+        st.html(html)
 
     st.download_button(
         "HTML 파일 다운로드",
-        data=r["html"],
-        file_name=f"reddit_horror_{r['blog_range'].replace('~', '-')}.html",
+        data=html,
+        file_name=f"reddit_horror_{blog_range.replace('~', '-')}.html",
         mime="text/html",
         use_container_width=True,
     )
+
+
+if "result" in st.session_state:
+    r = st.session_state["result"]
+    _show_output(r["title"], r["html"], r["blog_range"], r["sync"])
+elif github_state.LAST_OUTPUT_PATH.exists():
+    # 이번 세션에 만든 글은 없지만, 이전에 만든 글이 저장돼 있으면 복구해서 보여준다
+    # (버튼 누르고 다른 앱 갔다 와도 여기서 다시 볼 수 있음)
+    try:
+        last = json.loads(github_state.LAST_OUTPUT_PATH.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        last = None
+    if last and last.get("html"):
+        st.info(f"📄 최근 생성한 글 ({last.get('created_at', '')})")
+        _show_output(last["title"], last["html"], last.get("blog_range", ""))
 
 st.divider()
 st.caption(

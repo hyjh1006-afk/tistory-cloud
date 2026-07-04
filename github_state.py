@@ -14,12 +14,16 @@ from pathlib import Path
 
 import requests
 
-from src.paths import LAST_NUMBER_PATH, REDDIT_DAILY_PATH, USED_POSTS_PATH
+from src.paths import LAST_NUMBER_PATH, REDDIT_DAILY_PATH, ROOT_DIR, USED_POSTS_PATH
+
+# last_output.json: 마지막으로 생성한 글(HTML 포함) — 폰이 결과 화면을 놓쳐도 복구 가능
+LAST_OUTPUT_PATH = ROOT_DIR / "last_output.json"
 
 STATE_FILES: dict[str, Path] = {
     "state/last_number.json": LAST_NUMBER_PATH,
     "state/used_posts.json": USED_POSTS_PATH,
     "state/reddit_daily.json": REDDIT_DAILY_PATH,
+    "state/last_output.json": LAST_OUTPUT_PATH,
 }
 
 API_BASE = "https://api.github.com"
