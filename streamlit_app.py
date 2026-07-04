@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="괴담 글 생성기", page_icon="👻", layout="centered")
 
@@ -102,17 +103,63 @@ if st.button("⚡ 글 생성", type="primary", use_container_width=True):
     if "result" in st.session_state:
         st.rerun()
 
+def _rich_copy_button(html: str) -> None:
+    """서식(굵기·문단·링크)을 유지한 채 클립보드에 복사하는 버튼.
+    티스토리 모바일 앱의 일반 에디터에 그대로 붙여넣으면 된다."""
+    payload = json.dumps(html)
+    components.html(
+        f"""
+        <div id="src" contenteditable="true"
+             style="position:absolute; left:-99999px; top:0;"></div>
+        <button id="cp"
+          style="width:100%; padding:14px; font-size:16px; font-weight:bold;
+                 background:#ff4b4b; color:white; border:none; border-radius:8px;
+                 cursor:pointer;">
+          📋 본문 복사 (서식 유지)
+        </button>
+        <script>
+        const html = {payload};
+        const btn = document.getElementById("cp");
+        btn.addEventListener("click", () => {{
+          const src = document.getElementById("src");
+          src.innerHTML = html;
+          const range = document.createRange();
+          range.selectNodeContents(src);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          let ok = false;
+          try {{ ok = document.execCommand("copy"); }} catch (e) {{}}
+          sel.removeAllRanges();
+          src.innerHTML = "";
+          btn.innerText = ok ? "✅ 복사 완료! 티스토리 본문에 붙여넣으세요"
+                             : "❌ 복사 실패 — 아래 원본 HTML을 길게 눌러 복사하세요";
+          setTimeout(() => {{ btn.innerText = "📋 본문 복사 (서식 유지)"; }}, 4000);
+        }});
+        </script>
+        """,
+        height=60,
+    )
+
+
 def _show_output(title: str, html: str, blog_range: str, sync_msg: str = "") -> None:
     st.success(f"**{title}** 생성 완료")
     if sync_msg:
         st.caption(sync_msg)
 
-    st.subheader("티스토리에 붙여넣을 HTML")
-    st.caption("오른쪽 위 복사 아이콘 → 티스토리 앱 글쓰기(HTML 모드)에 붙여넣기")
-    st.code(html, language="html")
+    st.subheader("① 제목")
+    st.caption("오른쪽 복사 아이콘 → 티스토리 제목칸에 붙여넣기")
+    st.code(title, language=None)
+
+    st.subheader("② 본문")
+    st.caption("아래 버튼 → 티스토리 본문에 그대로 붙여넣기 (서식이 유지돼요)")
+    _rich_copy_button(html)
 
     with st.expander("미리보기"):
         st.html(html)
+
+    with st.expander("원본 HTML (PC에서 HTML 모드로 붙일 때)"):
+        st.code(html, language="html")
 
     st.download_button(
         "HTML 파일 다운로드",
