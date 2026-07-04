@@ -10,21 +10,21 @@ secrets가 없으면 로컬 파일만 사용 (PC에서 테스트할 때).
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 
 import requests
 
-from src.paths import LAST_NUMBER_PATH, REDDIT_DAILY_PATH, ROOT_DIR, USED_POSTS_PATH
-
-# last_output.json: 마지막으로 생성한 글(HTML 포함) — 폰이 결과 화면을 놓쳐도 복구 가능
-LAST_OUTPUT_PATH = ROOT_DIR / "last_output.json"
+from src.paths import LAST_NUMBER_PATH, REDDIT_DAILY_PATH, USED_POSTS_PATH
 
 STATE_FILES: dict[str, Path] = {
     "state/last_number.json": LAST_NUMBER_PATH,
     "state/used_posts.json": USED_POSTS_PATH,
     "state/reddit_daily.json": REDDIT_DAILY_PATH,
-    "state/last_output.json": LAST_OUTPUT_PATH,
 }
+
+# 대기 중인 글 (생성됐지만 아직 티스토리에 안 올린 글들)
+OUTPUTS_DIR = "state/outputs"
 
 API_BASE = "https://api.github.com"
 
@@ -119,3 +119,93 @@ def push_state() -> str:
         response.raise_for_status()
         pushed += 1
     return f"GitHub에 상태 저장 완료 ({pushed}개 파일)"
+
+
+def _bot_identity() -> dict[str, str]:
+    return {
+        "name": "tistory-cloud-bot",
+        "email": "287627535+hyjh1006-afk@users.noreply.github.com",
+    }
+
+
+def list_outputs() -> list[dict]:
+    """대기 중인 글 목록 (오래된 것부터 — 올릴 순서대로)."""
+    settings = _settings()
+    if not settings:
+        return []
+    token, repo, branch = settings
+
+    listing = requests.get(
+        f"{API_BASE}/repos/{repo}/contents/{OUTPUTS_DIR}",
+        headers=_headers(token),
+        params={"ref": branch},
+        timeout=20,
+    )
+    if listing.status_code == 404:
+        return []
+    listing.raise_for_status()
+
+    outputs = []
+    for entry in sorted(listing.json(), key=lambda e: e.get("name", "")):
+        if not entry.get("name", "").endswith(".json"):
+            continue
+        detail = requests.get(
+            entry["url"], headers=_headers(token), timeout=20
+        )
+        if detail.status_code != 200:
+            continue
+        try:
+            data = json.loads(
+                base64.b64decode(detail.json()["content"]).decode("utf-8")
+            )
+        except (ValueError, KeyError):
+            continue
+        data["_name"] = entry["name"]
+        data["_sha"] = entry["sha"]
+        outputs.append(data)
+    return outputs
+
+
+def save_output(name: str, data: dict) -> None:
+    """생성된 글을 대기 목록에 저장."""
+    settings = _settings()
+    if not settings:
+        return
+    token, repo, branch = settings
+    body = {
+        "message": f"글 생성: {name}",
+        "content": base64.b64encode(
+            json.dumps(data, ensure_ascii=False).encode("utf-8")
+        ).decode("ascii"),
+        "branch": branch,
+        "committer": _bot_identity(),
+        "author": _bot_identity(),
+    }
+    response = requests.put(
+        f"{API_BASE}/repos/{repo}/contents/{OUTPUTS_DIR}/{name}",
+        headers=_headers(token),
+        json=body,
+        timeout=20,
+    )
+    response.raise_for_status()
+
+
+def delete_output(name: str, sha: str) -> None:
+    """올린 글을 대기 목록에서 제거."""
+    settings = _settings()
+    if not settings:
+        return
+    token, repo, branch = settings
+    response = requests.delete(
+        f"{API_BASE}/repos/{repo}/contents/{OUTPUTS_DIR}/{name}",
+        headers=_headers(token),
+        json={
+            "message": f"올림 완료: {name}",
+            "sha": sha,
+            "branch": branch,
+            "committer": _bot_identity(),
+            "author": _bot_identity(),
+        },
+        timeout=20,
+    )
+    response.raise_for_status()

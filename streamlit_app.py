@@ -1,7 +1,8 @@
 """괴담 글 생성기 — 폰에서 어디서나 쓰는 클라우드 버전.
 
-Reddit 수집 → Gemini 번역 → 티스토리용 HTML까지 버튼 한 번.
-번호/사용 기록은 GitHub 저장소(state/)에 보존된다.
+- 버튼 한 번: Reddit 수집 → Gemini 번역 → 티스토리용 글 완성
+- 매일 자동 생성: schedule.json 시간표대로 GitHub Actions가 만들어 대기 목록에 쌓음
+- 만들어진 글은 전부 "대기 중인 글" 목록에 → 복사해서 올리고 [올렸음]으로 제거
 """
 
 import json
@@ -47,6 +48,63 @@ st.caption(
     f"{st.session_state['state_pulled']}"
 )
 
+
+def _rich_copy_button(html: str, key: str) -> None:
+    """서식(굵기·문단·링크)을 유지한 채 클립보드에 복사하는 버튼.
+    티스토리 모바일 앱의 일반 에디터에 그대로 붙여넣으면 된다."""
+    payload = json.dumps(html)
+    components.html(
+        f"""
+        <div id="src-{key}" contenteditable="true"
+             style="position:absolute; left:-99999px; top:0;"></div>
+        <button id="cp-{key}"
+          style="width:100%; padding:14px; font-size:16px; font-weight:bold;
+                 background:#ff4b4b; color:white; border:none; border-radius:8px;
+                 cursor:pointer;">
+          📋 본문 복사 (서식 유지)
+        </button>
+        <script>
+        (() => {{
+          const html = {payload};
+          const btn = document.getElementById("cp-{key}");
+          btn.addEventListener("click", () => {{
+            const src = document.getElementById("src-{key}");
+            src.innerHTML = html;
+            const range = document.createRange();
+            range.selectNodeContents(src);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            let ok = false;
+            try {{ ok = document.execCommand("copy"); }} catch (e) {{}}
+            sel.removeAllRanges();
+            src.innerHTML = "";
+            btn.innerText = ok ? "✅ 복사 완료! 티스토리 본문에 붙여넣으세요"
+                               : "❌ 복사 실패 — 원본 HTML을 길게 눌러 복사하세요";
+            setTimeout(() => {{ btn.innerText = "📋 본문 복사 (서식 유지)"; }}, 4000);
+          }});
+        }})();
+        </script>
+        """,
+        height=60,
+    )
+
+
+def _load_outputs() -> list[dict]:
+    if "outputs_cache" not in st.session_state:
+        try:
+            st.session_state["outputs_cache"] = github_state.list_outputs()
+        except Exception as exc:
+            st.warning(f"대기 목록을 못 불러왔어요: {exc}")
+            st.session_state["outputs_cache"] = []
+    return st.session_state["outputs_cache"]
+
+
+def _invalidate_outputs() -> None:
+    st.session_state.pop("outputs_cache", None)
+
+
+# ── 글 생성 ──────────────────────────────────────────────
 mode = st.radio(
     "모드",
     options=list(MODE_LABELS),
@@ -61,7 +119,6 @@ if mode == "two_sentence":
     )
 
 if st.button("⚡ 글 생성", type="primary", use_container_width=True):
-    st.session_state.pop("result", None)
     with st.status("실행 중…", expanded=True) as status:
         st.write("1/3 Reddit 수집 → 2/3 Gemini 번역 → 3/3 HTML 생성")
         logger = setup_logger()
@@ -72,120 +129,73 @@ if st.button("⚡ 글 생성", type="primary", use_container_width=True):
                 start_number_override=int(start_number) or None,
             )
             html = Path(result["output_paths"]["html"]).read_text(encoding="utf-8")
-            # 폰이 결과 화면을 놓쳐도 다시 열면 복구되도록 결과도 함께 저장
-            github_state.LAST_OUTPUT_PATH.write_text(
-                json.dumps(
-                    {
-                        "title": result["title"],
-                        "blog_range": result["blog_range"],
-                        "html": html,
-                        "created_at": datetime.now().isoformat(timespec="seconds"),
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            try:
-                sync_msg = github_state.push_state()
-            except Exception as exc:
-                sync_msg = f"⚠️ GitHub 저장 실패 (글은 정상 생성): {exc}"
-            st.session_state["result"] = {
+            record = {
                 "title": result["title"],
                 "blog_range": result["blog_range"],
                 "html": html,
-                "sync": sync_msg,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "mode": mode,
             }
-            status.update(label="완료!", state="complete", expanded=False)
+            try:
+                github_state.push_state()
+                safe_range = result["blog_range"].replace("~", "-")
+                name = f"{datetime.now():%Y%m%d_%H%M%S}_{safe_range}.json"
+                github_state.save_output(name, record)
+            except Exception as exc:
+                st.warning(f"GitHub 저장 실패 (글은 아래 목록 대신 여기 한정 표시): {exc}")
+                st.session_state["outputs_cache"] = _load_outputs() + [record]
+            else:
+                _invalidate_outputs()
+            status.update(label="완료! 아래 대기 목록에서 복사하세요", state="complete", expanded=False)
         except Exception as exc:
             logger.exception("cloud run failed: %s", exc)
             status.update(label="실패", state="error")
             st.error(str(exc))
-    if "result" in st.session_state:
+
+# ── 대기 중인 글 목록 ─────────────────────────────────────
+st.divider()
+outputs = _load_outputs()
+col_title, col_btn = st.columns([3, 1])
+with col_title:
+    st.subheader(f"📬 대기 중인 글 ({len(outputs)})")
+with col_btn:
+    if st.button("🔄 새로고침", use_container_width=True):
+        _invalidate_outputs()
         st.rerun()
 
-def _rich_copy_button(html: str) -> None:
-    """서식(굵기·문단·링크)을 유지한 채 클립보드에 복사하는 버튼.
-    티스토리 모바일 앱의 일반 에디터에 그대로 붙여넣으면 된다."""
-    payload = json.dumps(html)
-    components.html(
-        f"""
-        <div id="src" contenteditable="true"
-             style="position:absolute; left:-99999px; top:0;"></div>
-        <button id="cp"
-          style="width:100%; padding:14px; font-size:16px; font-weight:bold;
-                 background:#ff4b4b; color:white; border:none; border-radius:8px;
-                 cursor:pointer;">
-          📋 본문 복사 (서식 유지)
-        </button>
-        <script>
-        const html = {payload};
-        const btn = document.getElementById("cp");
-        btn.addEventListener("click", () => {{
-          const src = document.getElementById("src");
-          src.innerHTML = html;
-          const range = document.createRange();
-          range.selectNodeContents(src);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(range);
-          let ok = false;
-          try {{ ok = document.execCommand("copy"); }} catch (e) {{}}
-          sel.removeAllRanges();
-          src.innerHTML = "";
-          btn.innerText = ok ? "✅ 복사 완료! 티스토리 본문에 붙여넣으세요"
-                             : "❌ 복사 실패 — 아래 원본 HTML을 길게 눌러 복사하세요";
-          setTimeout(() => {{ btn.innerText = "📋 본문 복사 (서식 유지)"; }}, 4000);
-        }});
-        </script>
-        """,
-        height=60,
-    )
+if not outputs:
+    st.caption("대기 중인 글이 없어요. 자동 생성 시간이 되거나 위 버튼으로 만들면 여기 쌓입니다.")
 
+for index, item in enumerate(outputs):
+    expanded = index == 0
+    with st.expander(f"**{item.get('title', '(제목 없음)')}** · {item.get('created_at', '')}", expanded=expanded):
+        tab_copy, tab_preview, tab_html = st.tabs(["📋 복사", "👀 미리보기", "</> 원본 HTML"])
 
-def _show_output(title: str, html: str, blog_range: str, sync_msg: str = "") -> None:
-    st.success(f"**{title}** 생성 완료")
-    if sync_msg:
-        st.caption(sync_msg)
+        with tab_copy:
+            st.markdown("**① 제목** — 복사해서 티스토리 제목칸에")
+            st.code(item.get("title", ""), language=None)
+            st.markdown("**② 본문** — 버튼 누르고 티스토리 본문에 붙여넣기")
+            _rich_copy_button(item.get("html", ""), key=f"out{index}")
 
-    st.subheader("① 제목")
-    st.caption("오른쪽 복사 아이콘 → 티스토리 제목칸에 붙여넣기")
-    st.code(title, language=None)
+        with tab_preview:
+            st.html(item.get("html", ""))
 
-    st.subheader("② 본문")
-    st.caption("아래 버튼 → 티스토리 본문에 그대로 붙여넣기 (서식이 유지돼요)")
-    _rich_copy_button(html)
+        with tab_html:
+            st.caption("PC에서 HTML 모드로 붙일 때만 사용")
+            st.code(item.get("html", ""), language="html")
 
-    with st.expander("미리보기"):
-        st.html(html)
-
-    with st.expander("원본 HTML (PC에서 HTML 모드로 붙일 때)"):
-        st.code(html, language="html")
-
-    st.download_button(
-        "HTML 파일 다운로드",
-        data=html,
-        file_name=f"reddit_horror_{blog_range.replace('~', '-')}.html",
-        mime="text/html",
-        use_container_width=True,
-    )
-
-
-if "result" in st.session_state:
-    r = st.session_state["result"]
-    _show_output(r["title"], r["html"], r["blog_range"], r["sync"])
-elif github_state.LAST_OUTPUT_PATH.exists():
-    # 이번 세션에 만든 글은 없지만, 이전에 만든 글이 저장돼 있으면 복구해서 보여준다
-    # (버튼 누르고 다른 앱 갔다 와도 여기서 다시 볼 수 있음)
-    try:
-        last = json.loads(github_state.LAST_OUTPUT_PATH.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        last = None
-    if last and last.get("html"):
-        st.info(f"📄 최근 생성한 글 ({last.get('created_at', '')})")
-        _show_output(last["title"], last["html"], last.get("blog_range", ""))
+        if item.get("_name") and st.button(
+            "✅ 올렸음 (목록에서 제거)", key=f"done{index}", use_container_width=True
+        ):
+            try:
+                github_state.delete_output(item["_name"], item["_sha"])
+                _invalidate_outputs()
+                st.rerun()
+            except Exception as exc:
+                st.error(f"제거 실패: {exc}")
 
 st.divider()
 st.caption(
-    "글 생성 버튼을 누르면 사용된 Reddit 글이 즉시 기록되어 다시 나오지 않습니다. "
-    "수집은 10분 간격 제한이 있습니다."
+    "자동 생성 시간표는 GitHub의 schedule.json에서 바꿀 수 있어요 (한국시간, 30분 단위). "
+    "글에 들어간 Reddit 원문은 즉시 기록되어 다시 나오지 않습니다."
 )
