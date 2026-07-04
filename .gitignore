@@ -12,3 +12,4 @@ __pycache__/
 .streamlit/secrets.toml
 DEPLOY_SECRETS.txt
 /last_output.json
+/stage2_token.json

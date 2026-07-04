@@ -120,7 +120,7 @@ with tab_dash:
     top_left, top_right = st.columns([3, 1])
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
-            for k in ("m_blogger", "m_coupang", "m_youtube"):
+            for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense", "m_tistory"):
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -153,7 +153,26 @@ with tab_dash:
     else:
         st.caption(f"조회 실패: {data}")
 
-    st.caption("💤 예정: 티스토리 방문자(GA4 설치 후) · 애드센스 수익 (2단계)")
+    st.subheader("💰 애드센스 수익")
+    status, data = _metric_block(dashboard.adsense_stats, "m_adsense")
+    if status == "ok":
+        c1, c2, c3 = st.columns(3)
+        c1.metric("오늘", f"{data['today']:,.0f}원")
+        c2.metric("최근 7일", f"{data['last_7d']:,.0f}원")
+        c3.metric("이번 달", f"{data['month']:,.0f}원")
+    else:
+        st.caption(f"미연결: {data}")
+
+    st.subheader("🏠 티스토리 방문자 (GA4)")
+    status, data = _metric_block(dashboard.tistory_stats, "m_tistory")
+    if status == "ok":
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("오늘 방문", f"{data['today_users']:,}")
+        c2.metric("오늘 조회", f"{data['today_views']:,}")
+        c3.metric("7일 방문", f"{data['week_users']:,}")
+        c4.metric("7일 조회", f"{data['week_views']:,}")
+    else:
+        st.caption(f"미연결: {data}")
 
     st.divider()
     st.subheader("🕹️ 원격 조종")

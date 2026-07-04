@@ -190,6 +190,116 @@ def youtube_stats() -> dict:
     }
 
 
+# ── 애드센스 수익 (AdSense Management API) ──────────────────
+
+_LOCAL_STAGE2_TOKEN = ROOT / "stage2_token.json"
+
+
+def _stage2_access_token() -> str:
+    """애드센스+GA4 겸용 토큰 (scope: adsense.readonly, analytics.readonly)"""
+    client_id = _secret("BLOGGER_CLIENT_ID")
+    client_secret = _secret("BLOGGER_CLIENT_SECRET")
+    refresh_token = _secret("REPORTS_REFRESH_TOKEN")
+    if not (client_id and client_secret and refresh_token) and _LOCAL_STAGE2_TOKEN.exists():
+        data = json.loads(_LOCAL_STAGE2_TOKEN.read_text(encoding="utf-8"))
+        client_id = client_id or data.get("client_id", "")
+        client_secret = client_secret or data.get("client_secret", "")
+        refresh_token = data.get("refresh_token", "")
+    if not (client_id and client_secret and refresh_token):
+        raise RuntimeError("애드센스/GA 토큰이 없습니다 (get_stage2_token.py 실행 필요)")
+    response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
+def adsense_stats() -> dict:
+    token = _stage2_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    accounts = requests.get(
+        "https://adsense.googleapis.com/v2/accounts", headers=headers, timeout=30
+    )
+    accounts.raise_for_status()
+    items = accounts.json().get("accounts") or []
+    if not items:
+        raise RuntimeError("애드센스 계정을 찾지 못했습니다")
+    account = items[0]["name"]  # accounts/pub-xxxx
+
+    def _earnings(date_range: str) -> float:
+        report = requests.get(
+            f"https://adsense.googleapis.com/v2/{account}/reports:generate",
+            headers=headers,
+            params={
+                "dateRange": date_range,
+                "metrics": "ESTIMATED_EARNINGS",
+                "reportingTimeZone": "ACCOUNT_TIME_ZONE",
+            },
+            timeout=30,
+        )
+        report.raise_for_status()
+        totals = report.json().get("totals", {}).get("cells", [])
+        return float(totals[0].get("value") or 0) if totals else 0.0
+
+    return {
+        "today": _earnings("TODAY"),
+        "last_7d": _earnings("LAST_7_DAYS"),
+        "month": _earnings("MONTH_TO_DATE"),
+        "account": account.replace("accounts/", ""),
+    }
+
+
+# ── 티스토리 방문자 (GA4 Data API) ──────────────────────────
+
+def tistory_stats() -> dict:
+    property_id = _secret("GA4_PROPERTY_ID")
+    if not property_id and _LOCAL_STAGE2_TOKEN.exists():
+        property_id = json.loads(
+            _LOCAL_STAGE2_TOKEN.read_text(encoding="utf-8")
+        ).get("ga4_property_id", "")
+    if not property_id:
+        raise RuntimeError("GA4_PROPERTY_ID가 없습니다 (GA4 설치 후 설정)")
+
+    token = _stage2_access_token()
+
+    def _report(start: str) -> dict:
+        response = requests.post(
+            f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runReport",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "dateRanges": [{"startDate": start, "endDate": "today"}],
+                "metrics": [{"name": "activeUsers"}, {"name": "screenPageViews"}],
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        rows = response.json().get("rows") or []
+        if not rows:
+            return {"users": 0, "views": 0}
+        values = rows[0].get("metricValues", [])
+        return {
+            "users": int(values[0].get("value") or 0) if values else 0,
+            "views": int(values[1].get("value") or 0) if len(values) > 1 else 0,
+        }
+
+    today = _report("today")
+    week = _report("7daysAgo")
+    return {
+        "today_users": today["users"],
+        "today_views": today["views"],
+        "week_users": week["users"],
+        "week_views": week["views"],
+    }
+
+
 # ── GitHub 원격 조종 (시간표·즉시 실행) ─────────────────────
 
 _GH_API = "https://api.github.com"
