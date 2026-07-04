@@ -1,0 +1,28 @@
+{
+  "reddit": {
+    "subreddit": "TwoSentenceHorror",
+    "sort": "new",
+    "time_filter": "week",
+    "fetch_limit": 10,
+    "user_agent": "windows:tistory-reddit-generator:1.2 (by /u/tistory_reddit_desktop)",
+    "collect": {
+      "daily_max_posts": 10,
+      "delay_min_sec": 3,
+      "delay_max_sec": 7
+    }
+  },
+  "tistory": {
+    "blog_name": "tester188",
+    "category_path": "레딧 짧은 괴담 번역/두 줄 괴담",
+    "category_url": "https://tester188.tistory.com/category/%EB%A0%88%EB%94%A7%20%EC%A7%A7%EC%9D%80%20%EA%B4%B4%EB%8B%B4%20%EB%B2%88%EC%97%AD/%EB%91%90%20%EC%A4%84%20%EA%B4%B4%EB%8B%B4"
+  },
+  "numbering": {
+    "source": "category_page",
+    "fallback_to_local": true
+  },
+  "gemini": {
+    "api_key": "",
+    "model": "gemini-2.5-flash"
+  },
+  "output": {}
+}
