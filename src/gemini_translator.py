@@ -68,8 +68,9 @@ def translate_prompt(
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.7,
-            # 두줄괴담 10개 JSON 답변이 잘리지 않도록 넉넉하게
-            "maxOutputTokens": 8192,
+            # 단편괴담(장문) 번역 + thinking 토큰까지 감안해 최대치로.
+            # 8192로는 장문 응답 끝(해설)이 잘리는 사고가 실제로 발생 (2026-07-04)
+            "maxOutputTokens": 65536,
         },
     }
 
