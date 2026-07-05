@@ -159,33 +159,6 @@ if active_tab == TABS[0]:
     _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
     _schedule_editor("유튜브 자동 업로드", dashboard.SHORTS_REPO, "shorts")
 
-    # ── 애드센스 승인 상태 ─────────────────────────────────
-    st.divider()
-    st.subheader("🟢 블로거 애드센스")
-    ad_status, ad = _metric_block(dashboard.blogger_adsense_status, "m_ad_status")
-    if ad_status == "ok":
-        state = ad.get("state", "UNKNOWN")
-        if ad.get("approved"):
-            dday = ad.get("coupang_dday")
-            if ad.get("coupang_active_date"):
-                if dday is not None and dday > 0:
-                    coupang = f"쿠팡 링크 D-{dday} ({ad['coupang_active_date']}부터)"
-                else:
-                    coupang = "쿠팡 링크 활성 ✅"
-            else:
-                coupang = "승인 기록 동기화 대기"
-            st.success(f"승인 완료 ✅  ·  {coupang}")
-        elif state == "GETTING_READY":
-            st.warning("심사 중 🟡 (준비 중 — 승인되면 자동 반영)")
-        elif state == "REQUIRES_REVIEW":
-            st.warning("심사 대기 🟡 (검토 요청됨)")
-        elif state == "NEEDS_ATTENTION":
-            st.error("확인 필요 🔴 (애드센스에서 조치 필요)")
-        else:
-            st.info(f"상태: {state}")
-    else:
-        st.caption(f"상태 조회 실패: {ad}")
-
     # ── 지표 + 추세 ───────────────────────────────────────
     st.divider()
     top_left, top_right = st.columns([3, 1])
@@ -238,6 +211,30 @@ if active_tab == TABS[0]:
         c3.metric("이번 달", f"{adr['month']:,.0f}원")
     else:
         st.caption(f"미연결: {adr}")
+
+    # 애드센스 승인 현황 (블로거) — 수익 항목에 함께 표시
+    s_ads, ad = _metric_block(dashboard.blogger_adsense_status, "m_ad_status")
+    if s_ads == "ok":
+        state = ad.get("state", "UNKNOWN")
+        if ad.get("approved"):
+            dday = ad.get("coupang_dday")
+            if ad.get("coupang_active_date") and dday is not None and dday > 0:
+                coupang = f"쿠팡 링크 D-{dday} ({ad['coupang_active_date']}부터)"
+            elif ad.get("coupang_active_date"):
+                coupang = "쿠팡 링크 활성 ✅"
+            else:
+                coupang = "승인 기록 동기화 대기"
+            st.caption(f"블로거 애드센스 현황: 승인 완료 ✅ · {coupang}")
+        elif state == "GETTING_READY":
+            st.caption("블로거 애드센스 현황: 심사 중 🟡 (승인되면 자동 반영)")
+        elif state == "REQUIRES_REVIEW":
+            st.caption("블로거 애드센스 현황: 심사 대기 🟡 (검토 요청됨)")
+        elif state == "NEEDS_ATTENTION":
+            st.caption("블로거 애드센스 현황: 확인 필요 🔴")
+        else:
+            st.caption(f"블로거 애드센스 현황: {state}")
+    else:
+        st.caption(f"블로거 애드센스 현황: 조회 실패 ({ad})")
 
     st.markdown("**🏠 티스토리 방문자 (GA4)**")
     if s_ts == "ok":

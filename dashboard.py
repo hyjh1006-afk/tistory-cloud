@@ -170,10 +170,11 @@ def coupang_stats(days: int = 30) -> dict:
 
 def youtube_stats() -> dict:
     token = _google_access_token("YT", _LOCAL_YT_TOKEN)
+    headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(
         "https://www.googleapis.com/youtube/v3/channels",
-        headers={"Authorization": f"Bearer {token}"},
-        params={"part": "snippet,statistics", "mine": "true"},
+        headers=headers,
+        params={"part": "snippet,statistics,contentDetails", "mine": "true"},
         timeout=30,
     )
     response.raise_for_status()
@@ -182,10 +183,36 @@ def youtube_stats() -> dict:
         raise RuntimeError("유튜브 채널을 찾지 못했습니다")
     channel = items[0]
     stats = channel.get("statistics", {})
+
+    # 채널 총조회수(viewCount)는 유튜브가 0으로 주는 경우가 있어,
+    # 개별 영상 조회수를 합산해서 실제 값을 구한다.
+    views = int(stats.get("viewCount") or 0)
+    try:
+        uploads = channel["contentDetails"]["relatedPlaylists"]["uploads"]
+        pl = requests.get(
+            "https://www.googleapis.com/youtube/v3/playlistItems",
+            headers=headers,
+            params={"part": "contentDetails", "playlistId": uploads, "maxResults": 50},
+            timeout=30,
+        ).json()
+        vids = [i["contentDetails"]["videoId"] for i in pl.get("items", [])]
+        if vids:
+            vs = requests.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                headers=headers,
+                params={"part": "statistics", "id": ",".join(vids)},
+                timeout=30,
+            ).json()
+            summed = sum(int(v["statistics"].get("viewCount", 0)) for v in vs.get("items", []))
+            if summed > views:
+                views = summed
+    except (KeyError, requests.RequestException):
+        pass
+
     return {
         "channel": channel.get("snippet", {}).get("title", ""),
         "subscribers": int(stats.get("subscriberCount") or 0),
-        "views": int(stats.get("viewCount") or 0),
+        "views": views,
         "videos": int(stats.get("videoCount") or 0),
     }
 
