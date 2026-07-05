@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -128,8 +129,26 @@ def _bot_identity() -> dict[str, str]:
     }
 
 
+MAX_OUTPUT_AGE_DAYS = 3  # 이보다 오래된 대기 글은 목록 조회 때 자동 삭제
+
+
+def _output_age_days(data: dict, name: str):
+    """글의 나이(일). created_at 우선, 없으면 파일명 타임스탬프. 못 구하면 None."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    created = str(data.get("created_at", ""))
+    try:
+        return (now - datetime.fromisoformat(created)).total_seconds() / 86400
+    except ValueError:
+        pass
+    try:  # 파일명 예: 20260705_123456_361-370.json
+        return (now - datetime.strptime(name[:15], "%Y%m%d_%H%M%S")).total_seconds() / 86400
+    except (ValueError, IndexError):
+        return None
+
+
 def list_outputs() -> list[dict]:
-    """대기 중인 글 목록 (오래된 것부터 — 올릴 순서대로)."""
+    """대기 중인 글 목록 (오래된 것부터 — 올릴 순서대로).
+    MAX_OUTPUT_AGE_DAYS 초과한 글은 자동 삭제한다 (안 올린 채 방치돼도 정리됨)."""
     settings = _settings()
     if not settings:
         return []
@@ -147,11 +166,10 @@ def list_outputs() -> list[dict]:
 
     outputs = []
     for entry in sorted(listing.json(), key=lambda e: e.get("name", "")):
-        if not entry.get("name", "").endswith(".json"):
+        name = entry.get("name", "")
+        if not name.endswith(".json"):
             continue
-        detail = requests.get(
-            entry["url"], headers=_headers(token), timeout=20
-        )
+        detail = requests.get(entry["url"], headers=_headers(token), timeout=20)
         if detail.status_code != 200:
             continue
         try:
@@ -160,7 +178,16 @@ def list_outputs() -> list[dict]:
             )
         except (ValueError, KeyError):
             continue
-        data["_name"] = entry["name"]
+
+        age = _output_age_days(data, name)
+        if age is not None and age > MAX_OUTPUT_AGE_DAYS:
+            try:
+                delete_output(name, entry["sha"])  # 3일 지난 글 자동 정리
+            except Exception:
+                pass
+            continue
+
+        data["_name"] = name
         data["_sha"] = entry["sha"]
         outputs.append(data)
     return outputs
