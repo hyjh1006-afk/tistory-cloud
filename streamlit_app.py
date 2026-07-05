@@ -159,7 +159,7 @@ if active_tab == TABS[0]:
     _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
     _schedule_editor("유튜브 자동 업로드", dashboard.SHORTS_REPO, "shorts")
 
-    # ── 지표 + 추세 ───────────────────────────────────────
+    # ── 지표 ──────────────────────────────────────────────
     st.divider()
     top_left, top_right = st.columns([3, 1])
     with top_left:
@@ -167,7 +167,7 @@ if active_tab == TABS[0]:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_tistory", "m_ad_status", "metrics_recorded"):
+                      "m_tistory", "m_ad_status"):
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -245,41 +245,6 @@ if active_tab == TABS[0]:
         c4.metric("7일 조회", f"{ts['week_views']:,}")
     else:
         st.caption(f"미연결: {ts}")
-
-    # 오늘 지표 스냅샷 기록 (세션당 1회) → 추세 그래프용
-    if "metrics_recorded" not in st.session_state:
-        snapshot = {}
-        if s_bl == "ok":
-            snapshot["블로거 조회수"] = bl["views_all"]
-        if s_cp == "ok":
-            snapshot["쿠팡 수수료"] = cp["commission"]
-        if s_yt == "ok":
-            snapshot["유튜브 구독자"] = yt["subscribers"]
-            snapshot["유튜브 조회수"] = yt["views"]
-        if s_ad == "ok":
-            snapshot["애드센스 이번달"] = adr["month"]
-        if s_ts == "ok":
-            snapshot["티스토리 7일방문"] = ts["week_users"]
-        if snapshot:
-            dashboard.record_metrics_today(snapshot)
-        st.session_state["metrics_recorded"] = True
-
-    st.divider()
-    st.subheader("📊 추세 (일별)")
-    history = dashboard.load_metrics_history()
-    if len(history) < 2:
-        st.caption("추세는 이틀 이상 데이터가 쌓이면 나타나요. "
-                   "매일 이 앱을 한 번씩 열면 그날 지표가 자동 기록됩니다.")
-    else:
-        try:
-            import pandas as pd
-
-            df = pd.DataFrame(history).set_index("date")
-            for col in df.columns:
-                st.caption(col)
-                st.line_chart(df[[col]], height=160)
-        except Exception as exc:
-            st.caption(f"그래프 표시 실패: {exc}")
 
 
 # ══════════════════════════════════════════════════════════
