@@ -34,12 +34,8 @@ MODE_LABELS = {"two_sentence": "두 줄 괴담 (10개)", "nosleep": "단편 괴�
 
 st.title("🎛️ 파이프라인 HQ")
 
-# 탭을 라디오로 구현 — 대시보드 버튼에서 프로그램적으로 탭 전환하기 위함
-TABS = ["📊 대시보드", "👻 괴담티스토리", "🎬 경제유튜브"]
-if "active_tab" not in st.session_state:
-    st.session_state["active_tab"] = TABS[0]
-active_tab = st.radio(
-    "메뉴", TABS, horizontal=True, label_visibility="collapsed", key="active_tab"
+tab_dash, tab_gwidam, tab_youtube = st.tabs(
+    ["📊 대시보드", "👻 괴담티스토리", "🎬 경제유튜브"]
 )
 
 
@@ -97,6 +93,39 @@ def _metric_block(loader, cache_key: str):
     return st.session_state[cache_key]
 
 
+def _run_gwidam(mode: str, start_number: int = 0) -> None:
+    """괴담 글 생성 → 대기 목록에 저장. 대시보드/괴담 탭 공용."""
+    with st.status("실행 중…", expanded=True) as box:
+        st.write("1/3 Reddit 수집 → 2/3 Gemini 번역 → 3/3 HTML 생성")
+        logger = setup_logger()
+        try:
+            result = generate_full_auto(
+                logger, mode, start_number_override=int(start_number) or None
+            )
+            html = Path(result["output_paths"]["html"]).read_text(encoding="utf-8")
+            record = {
+                "title": result["title"],
+                "blog_range": result["blog_range"],
+                "html": html,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "mode": mode,
+            }
+            try:
+                github_state.push_state()
+                safe = result["blog_range"].replace("~", "-")
+                github_state.save_output(f"{datetime.now():%Y%m%d_%H%M%S}_{safe}.json", record)
+            except Exception as exc:
+                st.warning(f"GitHub 저장 실패: {exc}")
+            st.session_state.pop("outputs_cache", None)
+            box.update(label=f"완료! {result['title']}", state="complete", expanded=False)
+            return True
+        except Exception as exc:
+            logger.exception("gwidam run failed: %s", exc)
+            box.update(label="실패", state="error")
+            st.error(str(exc))
+            return False
+
+
 def _schedule_editor(label: str, repo: str, key: str) -> None:
     """저장소의 schedule.json times를 조회·수정하는 작은 UI."""
     try:
@@ -122,14 +151,7 @@ def _schedule_editor(label: str, repo: str, key: str) -> None:
 # 📊 대시보드
 # ══════════════════════════════════════════════════════════
 
-def _go_gwidam(mode: str) -> None:
-    """대시보드에서 괴담 탭으로 전환 + 자동 생성 예약.
-    on_click 콜백에서 호출 — 위젯 생성 전에 실행되므로 active_tab 수정 가능."""
-    st.session_state["active_tab"] = TABS[1]
-    st.session_state["gwidam_autorun"] = mode
-
-
-if active_tab == TABS[0]:
+with tab_dash:
     st.subheader("🕹️ 원격 조종")
 
     col_a, col_b = st.columns(2)
@@ -150,11 +172,12 @@ if active_tab == TABS[0]:
 
     col_c, col_d = st.columns(2)
     with col_c:
-        st.button("👻 두 줄 괴담 글 생성", use_container_width=True,
-                  on_click=_go_gwidam, args=("two_sentence",))
+        gen_two = st.button("👻 두 줄 괴담 글 생성", use_container_width=True)
     with col_d:
-        st.button("👻 단편 괴담 글 생성", use_container_width=True,
-                  on_click=_go_gwidam, args=("nosleep",))
+        gen_nosleep = st.button("👻 단편 괴담 글 생성", use_container_width=True)
+    if gen_two or gen_nosleep:
+        if _run_gwidam("two_sentence" if gen_two else "nosleep"):
+            st.success("생성 완료! '👻 괴담티스토리' 탭에서 복사해 올리세요.")
 
     _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
     _schedule_editor("유튜브 자동 업로드", dashboard.SHORTS_REPO, "shorts")
@@ -251,7 +274,7 @@ if active_tab == TABS[0]:
 # 👻 괴담 (티스토리)
 # ══════════════════════════════════════════════════════════
 
-if active_tab == TABS[1]:
+with tab_gwidam:
     # 세션당 1회: GitHub에서 번호/사용 기록 내려받기
     if "state_pulled" not in st.session_state:
         try:
@@ -278,20 +301,12 @@ if active_tab == TABS[1]:
     def _invalidate_outputs() -> None:
         st.session_state.pop("outputs_cache", None)
 
-    # 대시보드 버튼에서 넘어온 자동 실행 (있으면 그 모드로 바로 생성)
-    autorun = st.session_state.pop("gwidam_autorun", None)
-    default_idx = list(MODE_LABELS).index(autorun) if autorun in MODE_LABELS else 0
-
     mode = st.radio(
         "모드",
         options=list(MODE_LABELS),
         format_func=MODE_LABELS.get,
         horizontal=True,
-        index=default_idx,
     )
-    if autorun in MODE_LABELS:
-        mode = autorun
-        st.info(f"대시보드에서 '{MODE_LABELS[mode]}' 생성을 요청했어요 — 바로 시작합니다.")
 
     start_number = 0
     if mode == "two_sentence":
@@ -299,41 +314,8 @@ if active_tab == TABS[1]:
             "시작 번호 (0 = 자동, 마지막 번호 다음)", min_value=0, step=1, value=0
         )
 
-    if st.button("⚡ 글 생성", type="primary", use_container_width=True) or autorun:
-        with st.status("실행 중…", expanded=True) as status_box:
-            st.write("1/3 Reddit 수집 → 2/3 Gemini 번역 → 3/3 HTML 생성")
-            logger = setup_logger()
-            try:
-                result = generate_full_auto(
-                    logger,
-                    mode,
-                    start_number_override=int(start_number) or None,
-                )
-                html = Path(result["output_paths"]["html"]).read_text(encoding="utf-8")
-                record = {
-                    "title": result["title"],
-                    "blog_range": result["blog_range"],
-                    "html": html,
-                    "created_at": datetime.now().isoformat(timespec="seconds"),
-                    "mode": mode,
-                }
-                try:
-                    github_state.push_state()
-                    safe_range = result["blog_range"].replace("~", "-")
-                    name = f"{datetime.now():%Y%m%d_%H%M%S}_{safe_range}.json"
-                    github_state.save_output(name, record)
-                except Exception as exc:
-                    st.warning(f"GitHub 저장 실패 (글은 아래 목록 대신 여기 한정 표시): {exc}")
-                    st.session_state["outputs_cache"] = _load_outputs() + [record]
-                else:
-                    _invalidate_outputs()
-                status_box.update(
-                    label="완료! 아래 대기 목록에서 복사하세요", state="complete", expanded=False
-                )
-            except Exception as exc:
-                logger.exception("cloud run failed: %s", exc)
-                status_box.update(label="실패", state="error")
-                st.error(str(exc))
+    if st.button("⚡ 글 생성", type="primary", use_container_width=True):
+        _run_gwidam(mode, start_number)
 
     st.divider()
     outputs = _load_outputs()
@@ -389,7 +371,7 @@ if active_tab == TABS[1]:
 # 🎬 유튜브
 # ══════════════════════════════════════════════════════════
 
-if active_tab == TABS[2]:
+with tab_youtube:
     status, data = _metric_block(dashboard.youtube_stats, "m_youtube")
     if status == "ok":
         st.subheader(f"채널: {data['channel']}")
