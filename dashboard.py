@@ -360,6 +360,123 @@ def save_schedule(repo: str, times: list[str], sha: str) -> None:
     response.raise_for_status()
 
 
+def blogger_adsense_status() -> dict:
+    """블로거 애드센스 승인 상태 + 쿠팡 링크 활성 시점.
+    반환: {state, approved: bool, approved_date, coupang_active_date, coupang_dday}"""
+    result = {
+        "state": "UNKNOWN",
+        "approved": False,
+        "approved_date": "",
+        "coupang_active_date": "",
+        "coupang_dday": None,
+    }
+    # 1) 애드센스 API로 현재 사이트 상태
+    try:
+        token = _stage2_access_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        acc = requests.get(
+            "https://adsense.googleapis.com/v2/accounts", headers=headers, timeout=30
+        ).json()
+        account = acc["accounts"][0]["name"]
+        sites = requests.get(
+            f"https://adsense.googleapis.com/v2/{account}/sites",
+            headers=headers,
+            timeout=30,
+        ).json()
+        for site in sites.get("sites", []):
+            dom = site.get("domain", "").replace("www.", "").lower()
+            if "afterwork-ai" in dom:
+                result["state"] = site.get("state", "UNKNOWN")
+                result["approved"] = site.get("state") == "READY"
+                break
+    except Exception:
+        pass
+
+    # 2) blogger-auto가 기록한 승인일 → 쿠팡 활성 D-day
+    try:
+        from datetime import date, timedelta
+
+        r = requests.get(
+            f"{_GH_API}/repos/{BLOGGER_REPO}/contents/state/adsense_status.json",
+            headers=_gh_headers(),
+            timeout=20,
+        )
+        if r.status_code == 200:
+            data = json.loads(base64.b64decode(r.json()["content"]).decode("utf-8"))
+            approved = data.get("approved_date", "")
+            if approved:
+                result["approved_date"] = approved
+                active = date.fromisoformat(approved) + timedelta(days=30)
+                result["coupang_active_date"] = active.isoformat()
+                result["coupang_dday"] = (active - date.today()).days
+    except Exception:
+        pass
+    return result
+
+
+METRICS_HISTORY_PATH = "state/metrics_history.json"
+
+
+def load_metrics_history() -> list[dict]:
+    try:
+        r = requests.get(
+            f"{_GH_API}/repos/{_secret('STATE_REPO')}/contents/{METRICS_HISTORY_PATH}",
+            headers=_gh_headers(),
+            params={"ref": _secret("STATE_BRANCH", "main")},
+            timeout=20,
+        )
+        if r.status_code != 200:
+            return []
+        return json.loads(base64.b64decode(r.json()["content"]).decode("utf-8"))
+    except Exception:
+        return []
+
+
+def record_metrics_today(metrics: dict) -> None:
+    """오늘(KST) 지표를 히스토리에 upsert (하루 1행). 실패해도 조용히 무시."""
+    from datetime import datetime, timezone, timedelta
+
+    today = (datetime.now(timezone.utc) + timedelta(hours=9)).date().isoformat()
+    repo = _secret("STATE_REPO")
+    branch = _secret("STATE_BRANCH", "main")
+    try:
+        r = requests.get(
+            f"{_GH_API}/repos/{repo}/contents/{METRICS_HISTORY_PATH}",
+            headers=_gh_headers(),
+            params={"ref": branch},
+            timeout=20,
+        )
+        history, sha = [], None
+        if r.status_code == 200:
+            sha = r.json()["sha"]
+            history = json.loads(base64.b64decode(r.json()["content"]).decode("utf-8"))
+        row = {"date": today, **metrics}
+        history = [h for h in history if h.get("date") != today] + [row]
+        history = history[-60:]  # 최근 60일만
+
+        bot = {"name": "pipeline-hq",
+               "email": "287627535+hyjh1006-afk@users.noreply.github.com"}
+        body = {
+            "message": f"지표 기록 {today}",
+            "content": base64.b64encode(
+                json.dumps(history, ensure_ascii=False, indent=2).encode("utf-8")
+            ).decode("ascii"),
+            "branch": branch,
+            "committer": bot,
+            "author": bot,
+        }
+        if sha:
+            body["sha"] = sha
+        requests.put(
+            f"{_GH_API}/repos/{repo}/contents/{METRICS_HISTORY_PATH}",
+            headers=_gh_headers(),
+            json=body,
+            timeout=20,
+        )
+    except Exception:
+        pass
+
+
 def trigger_workflow(repo: str, workflow_file: str = "daily.yml") -> None:
     """워크플로우 즉시 실행 (지금 글 발행 / 지금 영상 제작·업로드)"""
     response = requests.post(
