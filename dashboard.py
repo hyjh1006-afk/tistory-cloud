@@ -317,9 +317,22 @@ def tistory_stats() -> dict:
             "views": int(values[1].get("value") or 0) if len(values) > 1 else 0,
         }
 
+    def _realtime() -> int:
+        """지난 30분 접속자 — 일반 리포트와 달리 집계 지연이 없다."""
+        response = requests.post(
+            f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runRealtimeReport",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"metrics": [{"name": "activeUsers"}]},
+            timeout=30,
+        )
+        response.raise_for_status()
+        rows = response.json().get("rows") or []
+        return int(rows[0]["metricValues"][0].get("value") or 0) if rows else 0
+
     today = _report("today")
     week = _report("7daysAgo")
     return {
+        "now_users": _realtime(),
         "today_users": today["users"],
         "today_views": today["views"],
         "week_users": week["users"],

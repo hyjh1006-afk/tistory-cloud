@@ -261,11 +261,17 @@ with tab_dash:
 
     st.markdown("**🏠 티스토리 방문자 (GA4)**")
     if s_ts == "ok":
-        c1, c2, c3, c4 = st.columns(4)
+        c0, c1, c2, c3, c4 = st.columns(5)
+        c0.metric("실시간(30분)", f"{ts.get('now_users', 0):,}")
         c1.metric("오늘 방문", f"{ts['today_users']:,}")
         c2.metric("오늘 조회", f"{ts['today_views']:,}")
         c3.metric("7일 방문", f"{ts['week_users']:,}")
         c4.metric("7일 조회", f"{ts['week_views']:,}")
+        if not any((ts["today_users"], ts["today_views"], ts["week_users"], ts["week_views"])):
+            st.caption(
+                "GA4는 플러그인 적용(7/5) 이후 방문만 집계하고, 오늘/7일 숫자는 "
+                "반영까지 최대 하루쯤 걸려요. 연결은 정상 — 실시간 칸은 바로 잡힙니다."
+            )
     else:
         st.caption(f"미연결: {ts}")
 
