@@ -223,7 +223,7 @@ _LOCAL_STAGE2_TOKEN = ROOT / "stage2_token.json"
 
 
 def _stage2_access_token() -> str:
-    """애드센스+GA4 겸용 토큰 (scope: adsense.readonly, analytics.readonly)"""
+    """애드센스 조회용 토큰 (scope: adsense.readonly)"""
     client_id = _secret("BLOGGER_CLIENT_ID")
     client_secret = _secret("BLOGGER_CLIENT_SECRET")
     refresh_token = _secret("REPORTS_REFRESH_TOKEN")
@@ -281,62 +281,6 @@ def adsense_stats() -> dict:
         "last_7d": _earnings("LAST_7_DAYS"),
         "month": _earnings("MONTH_TO_DATE"),
         "account": account.replace("accounts/", ""),
-    }
-
-
-# ── 티스토리 방문자 (GA4 Data API) ──────────────────────────
-
-def tistory_stats() -> dict:
-    property_id = _secret("GA4_PROPERTY_ID")
-    if not property_id and _LOCAL_STAGE2_TOKEN.exists():
-        property_id = json.loads(
-            _LOCAL_STAGE2_TOKEN.read_text(encoding="utf-8")
-        ).get("ga4_property_id", "")
-    if not property_id:
-        raise RuntimeError("GA4_PROPERTY_ID가 없습니다 (GA4 설치 후 설정)")
-
-    token = _stage2_access_token()
-
-    def _report(start: str) -> dict:
-        response = requests.post(
-            f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runReport",
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "dateRanges": [{"startDate": start, "endDate": "today"}],
-                "metrics": [{"name": "activeUsers"}, {"name": "screenPageViews"}],
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        rows = response.json().get("rows") or []
-        if not rows:
-            return {"users": 0, "views": 0}
-        values = rows[0].get("metricValues", [])
-        return {
-            "users": int(values[0].get("value") or 0) if values else 0,
-            "views": int(values[1].get("value") or 0) if len(values) > 1 else 0,
-        }
-
-    def _realtime() -> int:
-        """지난 30분 접속자 — 일반 리포트와 달리 집계 지연이 없다."""
-        response = requests.post(
-            f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runRealtimeReport",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"metrics": [{"name": "activeUsers"}]},
-            timeout=30,
-        )
-        response.raise_for_status()
-        rows = response.json().get("rows") or []
-        return int(rows[0]["metricValues"][0].get("value") or 0) if rows else 0
-
-    today = _report("today")
-    week = _report("7daysAgo")
-    return {
-        "now_users": _realtime(),
-        "today_users": today["users"],
-        "today_views": today["views"],
-        "week_users": week["users"],
-        "week_views": week["views"],
     }
 
 

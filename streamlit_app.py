@@ -190,7 +190,7 @@ with tab_dash:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_tistory", "m_ad_status"):
+                      "m_ad_status"):
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -198,7 +198,6 @@ with tab_dash:
     s_cp, cp = _metric_block(dashboard.coupang_stats, "m_coupang")
     s_yt, yt = _metric_block(dashboard.youtube_stats, "m_youtube")
     s_ad, adr = _metric_block(dashboard.adsense_stats, "m_adsense")
-    s_ts, ts = _metric_block(dashboard.tistory_stats, "m_tistory")
 
     st.markdown("**📝 Blogger — AI공부하는 직장인의 개발 노트**")
     if s_bl == "ok":
@@ -258,22 +257,6 @@ with tab_dash:
             st.caption(f"블로거 애드센스 현황: {state}")
     else:
         st.caption(f"블로거 애드센스 현황: 조회 실패 ({ad})")
-
-    st.markdown("**🏠 티스토리 방문자 (GA4)**")
-    if s_ts == "ok":
-        c0, c1, c2, c3, c4 = st.columns(5)
-        c0.metric("실시간(30분)", f"{ts.get('now_users', 0):,}")
-        c1.metric("오늘 방문", f"{ts['today_users']:,}")
-        c2.metric("오늘 조회", f"{ts['today_views']:,}")
-        c3.metric("7일 방문", f"{ts['week_users']:,}")
-        c4.metric("7일 조회", f"{ts['week_views']:,}")
-        if not any((ts["today_users"], ts["today_views"], ts["week_users"], ts["week_views"])):
-            st.caption(
-                "GA4는 플러그인 적용(7/5) 이후 방문만 집계하고, 오늘/7일 숫자는 "
-                "반영까지 최대 하루쯤 걸려요. 연결은 정상 — 실시간 칸은 바로 잡힙니다."
-            )
-    else:
-        st.caption(f"미연결: {ts}")
 
 
 # ══════════════════════════════════════════════════════════
