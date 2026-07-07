@@ -33,7 +33,7 @@ SHORTS_REPO = "hyjh1006-afk/market-shorts"
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
 _LOCAL_COUPANG_KEYS = ROOT.parent / "Blogger_auto" / "coupang_keys.txt"
-_LOCAL_YT_TOKEN = ROOT.parent.parent / "ai" / "content_factory" / "token.json"
+_LOCAL_YT_TOKEN = ROOT.parent / "content_factory" / "token.json"
 
 
 def _secret(name: str, default: str = "") -> str:
