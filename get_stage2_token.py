@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-"""최초 1회 실행: 구글 로그인 → 애드센스 수익 + GA4 조회 권한 토큰 생성.
+"""최초 1회 실행: 구글 로그인 → 애드센스 수익 조회 권한 토큰 생성.
 
 준비물:
-1. 구글 클라우드 콘솔에서 두 API 사용 설정:
-   - AdSense Management API
-   - Google Analytics Data API
+1. 구글 클라우드 콘솔에서 AdSense Management API 사용 설정
 2. Blogger_auto 폴더의 client_secret.json 재사용 (자동으로 찾음)
 
 실행: python get_stage2_token.py
@@ -20,7 +18,6 @@ CLIENT_SECRET = BASE.parent / "Blogger_auto" / "client_secret.json"
 TOKEN = BASE / "stage2_token.json"
 SCOPES = [
     "https://www.googleapis.com/auth/adsense.readonly",
-    "https://www.googleapis.com/auth/analytics.readonly",
 ]
 
 
@@ -42,7 +39,6 @@ def main() -> None:
                 "client_id": installed.get("client_id", ""),
                 "client_secret": installed.get("client_secret", ""),
                 "refresh_token": creds.refresh_token,
-                "ga4_property_id": "",
             },
             indent=2,
         ),
@@ -52,7 +48,6 @@ def main() -> None:
     print()
     print("Streamlit secrets에 추가할 값:")
     print("  REPORTS_REFRESH_TOKEN = (stage2_token.json의 refresh_token 값)")
-    print("  GA4_PROPERTY_ID = (GA4 속성 ID — 숫자만)")
 
 
 if __name__ == "__main__":
