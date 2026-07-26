@@ -1,6 +1,31 @@
 import json
 import re
+from pathlib import Path
 from typing import Any
+
+# 제목 스타일 패턴 파일 (ai_monetization_lab 연동, 없거나 깨져도 무시)
+_TITLE_PATTERNS_PATH = Path(__file__).resolve().parent.parent / "title_patterns.json"
+
+
+def _title_style_lines() -> list[str]:
+    """title_patterns.json이 있으면 검색 유입형 제목 지시를 프롬프트에 추가한다.
+
+    파일이 없거나 형식이 깨지면 빈 목록을 반환해 기존 동작을 그대로 유지한다.
+    """
+    try:
+        cfg = json.loads(_TITLE_PATTERNS_PATH.read_text(encoding="utf-8"))
+        if not cfg.get("enabled", False):
+            return []
+        lines = [f"- {cfg['instruction']}"]
+        patterns = [p for p in cfg.get("patterns", []) if isinstance(p, str)][:6]
+        if patterns:
+            lines.append(f"- 제목 스타일 예시: {' / '.join(patterns[:3])}")
+            hint = cfg.get("pattern_hint", "")
+            if hint:
+                lines.append(f"- {hint}")
+        return lines
+    except Exception:
+        return []
 
 
 def post_source_text(post: dict[str, Any]) -> str:
@@ -27,6 +52,7 @@ def build_chatgpt_prompt(
         "중요 조건:",
         "- 원문 제목과 본문을 모두 빠짐없이 번역할 것",
         "- 제목도 한국어로 자연스럽게 번역해 title_translation에 넣을 것",
+        *_title_style_lines(),
         "- translation에는 본문 번역만 넣고 제목 번역을 반복하지 말 것",
         "- 원문 의미를 왜곡하지 말 것",
         "- 직역투를 피하되, 괴담 특유의 불길하고 섬뜩한 분위기를 살릴 것",
@@ -71,6 +97,7 @@ def build_nosleep_prompt(post: dict[str, Any]) -> str:
         "",
         "중요 조건:",
         "- 원문 제목과 본문을 모두 빠짐없이 번역할 것",
+        *_title_style_lines(),
         "- 원문 의미를 왜곡하지 말 것",
         "- 직역투를 피하되, 단편 괴담 특유의 불길하고 서늘한 분위기를 살릴 것",
         "- 한국어 독자가 읽었을 때 공포 단편처럼 자연스럽게 느껴지게 할 것",
