@@ -23,10 +23,22 @@ def get_local_last_number() -> int:
 
 
 def extract_last_number_from_text(text: str) -> int | None:
+    """제목의 '모음 381~390' 범위에서 최신 번호를 뽑는다.
+
+    주의: 카테고리 페이지의 글 미리보기에는 제목과 본문이 붙어 나와서
+    '…모음 381~390' + '381. 본문…'이 '381~390381'로 읽히는 함정이 있다
+    (2026-07-26 실제 사고 — 번호가 39만으로 폭주). 그래서 범위가 상식적인
+    쌍(끝>시작, 폭 100 이하)만 인정한다.
+    """
     matches = TITLE_RANGE_PATTERN.findall(html.unescape(text))
-    if not matches:
+    valid = [
+        (int(start), int(end))
+        for start, end in matches
+        if int(start) < int(end) <= int(start) + 100
+    ]
+    if not valid:
         return None
-    return max(int(end) for _start, end in matches)
+    return max(end for _start, end in valid)
 
 
 def fetch_category_last_number(category_url: str) -> int | None:
