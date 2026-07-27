@@ -209,6 +209,13 @@ def embed_coupang_links(
                 logger.info("쿠팡 키 없음 — 링크 생략")
             return html_content
 
+        # 링크는 괴담 본문에만 — 해설 구역(방문자가 잘 안 읽음)은 제외한다
+        split = re.search(r"<h2>해설</h2>|<p><strong>\[해설\]</strong></p>", html_content)
+        if split:
+            body, tail = html_content[: split.start()], html_content[split.start() :]
+        else:
+            body, tail = html_content, ""
+
         try:
             words = pick_product_words(korean_text, gemini_config)
         except Exception as exc:
@@ -218,7 +225,7 @@ def embed_coupang_links(
 
         linked = 0
         linked_words: set[str] = set()
-        result = html_content
+        result = body
         for item in words:
             if linked >= 3:
                 break
@@ -266,7 +273,7 @@ def embed_coupang_links(
 
         if linked == 0:
             return html_content
-        return result + "\n" + DISCLOSURE_HTML
+        return result + tail + "\n" + DISCLOSURE_HTML
     except Exception as exc:
         if logger:
             logger.warning("쿠팡 링크 처리 실패 — 원본 유지: %s", exc)
