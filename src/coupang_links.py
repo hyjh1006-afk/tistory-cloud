@@ -160,16 +160,38 @@ def pick_product_words(korean_text: str, gemini_config: dict | None) -> list[dic
 
 def _link_word_in_html(html_content: str, word: str, url: str) -> tuple[str, bool]:
     """HTML 본문 텍스트에서 word의 첫 등장에만 하이퍼링크를 단다.
-    태그 내부(속성 등)와 기존 링크 안은 건드리지 않는다."""
+    제목(h2/h3), 태그 내부(속성 등), 기존 링크 안은 건드리지 않는다."""
     escaped_url = url.replace('"', "%22")
     # (?![^<]*>) : 다음 '<'가 나오기 전에 '>'가 있으면(=태그 안이면) 매칭 금지
     pattern = re.compile(re.escape(word) + r"(?![^<]*>)(?![^<]*</a>)")
-    replaced = pattern.sub(
-        f'<a href="{escaped_url}" target="_blank" rel="noopener sponsored">{word}</a>',
-        html_content,
-        count=1,
-    )
-    return replaced, replaced != html_content
+    link = f'<a href="{escaped_url}" target="_blank" rel="noopener sponsored">{word}</a>'
+
+    # 제목 블록은 통째로 건너뛰고 본문 조각에서만 치환한다
+    segments = re.split(r"(<h[23][^>]*>.*?</h[23]>)", html_content, flags=re.DOTALL)
+    for index, segment in enumerate(segments):
+        if re.match(r"<h[23]", segment):
+            continue
+        replaced = pattern.sub(link, segment, count=1)
+        if replaced != segment:
+            segments[index] = replaced
+            return "".join(segments), True
+    return html_content, False
+
+
+# 상품 단어가 부족할 때 쓰는 예비 연결 — 괴담 글에 거의 항상 나오는 단어들.
+# (단어, 쿠팡 검색어) 순서대로 시도하며 본문에 있는 단어만 쓴다.
+_FALLBACK_PAIRS = [
+    ("괴담", "공포 소설"),
+    ("공포", "공포 소설"),
+    ("이야기", "공포 소설"),
+    ("소설", "공포 소설"),
+    ("꿈", "공포 소설"),
+    ("밤", "무드등"),
+    ("새벽", "무드등"),
+    ("소리", "무드등"),
+    ("집", "도어락"),
+    ("문", "도어락"),
+]
 
 
 def embed_coupang_links(
@@ -187,13 +209,15 @@ def embed_coupang_links(
                 logger.info("쿠팡 키 없음 — 링크 생략")
             return html_content
 
-        words = pick_product_words(korean_text, gemini_config)
-        if not words:
+        try:
+            words = pick_product_words(korean_text, gemini_config)
+        except Exception as exc:
             if logger:
-                logger.info("본문에서 상품 단어를 찾지 못함 — 링크 생략")
-            return html_content
+                logger.warning("상품 단어 선정 실패 — 예비 연결로 진행: %s", exc)
+            words = []
 
         linked = 0
+        linked_words: set[str] = set()
         result = html_content
         for item in words:
             if linked >= 3:
@@ -209,8 +233,36 @@ def embed_coupang_links(
             result, ok = _link_word_in_html(result, item["word"], url)
             if ok:
                 linked += 1
+                linked_words.add(item["word"])
                 if logger:
                     logger.info("쿠팡 링크 삽입: %s", item["word"])
+
+        # 최소 2개 보장: 부족하면 항상 나오는 단어(괴담·공포·밤 등)에 예비 상품 연결
+        if linked < 2:
+            used_keywords: set[str] = set()
+            for pass_allow_reuse in (False, True):
+                if linked >= 2:
+                    break
+                for word, keyword in _FALLBACK_PAIRS:
+                    if linked >= 2:
+                        break
+                    if word in linked_words:
+                        continue
+                    if not pass_allow_reuse and keyword in used_keywords:
+                        continue
+                    try:
+                        url = search_product_url(keyword, keys)
+                    except Exception:
+                        continue
+                    if not url:
+                        continue
+                    result, ok = _link_word_in_html(result, word, url)
+                    if ok:
+                        linked += 1
+                        linked_words.add(word)
+                        used_keywords.add(keyword)
+                        if logger:
+                            logger.info("예비 쿠팡 링크 삽입: %s → %s", word, keyword)
 
         if linked == 0:
             return html_content
