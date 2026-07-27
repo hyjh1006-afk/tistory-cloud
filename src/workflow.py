@@ -2,6 +2,7 @@ import logging
 from typing import Any, Callable
 
 from .config import load_config
+from .coupang_links import embed_coupang_links
 from .gemini_translator import translate_prompt
 from .content_generator import (
     build_blog_items,
@@ -212,6 +213,12 @@ def build_final_from_translation_result(logger: logging.Logger) -> dict[str, Any
             translated["translation"],
             translated.get("summary", ""),
         )
+        html_content = embed_coupang_links(
+            html_content,
+            translated["translation"] + "\n" + translated.get("summary", ""),
+            gemini_config=load_config().get("gemini"),
+            logger=logger,
+        )
         markdown_content = render_nosleep_markdown(
             final_title,
             post,
@@ -252,6 +259,12 @@ def build_final_from_translation_result(logger: logging.Logger) -> dict[str, Any
 
     items = build_blog_items(selected_posts, start_number, translations)
     html_content = render_html(title, items)
+    html_content = embed_coupang_links(
+        html_content,
+        "\n".join(item.translation + "\n" + item.summary for item in items),
+        gemini_config=load_config().get("gemini"),
+        logger=logger,
+    )
     markdown_content = render_markdown(title, items)
 
     output_paths = save_output_files(

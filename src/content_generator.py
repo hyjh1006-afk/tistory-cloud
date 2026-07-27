@@ -82,7 +82,6 @@ def render_markdown(title: str, items: list[BlogItem]) -> str:
             [
                 f"{item.number}.",
                 "",
-                item.source_text,
                 item.translation,
                 "",
                 "원문 링크:",
@@ -116,7 +115,6 @@ def render_html(title: str, items: list[BlogItem]) -> str:
         blocks.extend(
             [
                 f"<h3>{item.number}.</h3>",
-                paragraph(item.source_text),
                 paragraph(item.translation),
                 "<br>",
                 paragraph("원문 링크:"),

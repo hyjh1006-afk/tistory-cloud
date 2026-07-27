@@ -1,0 +1,221 @@
+# -*- coding: utf-8 -*-
+"""괴담 글 본문의 단어에 쿠팡파트너스 링크를 심는다.
+
+방식: 본문에 실제로 등장하는 '실물 상품' 단어 2~4개를 Gemini가 고르고,
+쿠팡 Open API로 상품을 검색해 그 단어 자체에 하이퍼링크를 단다.
+상품 소개 박스나 별도 링크 목록은 만들지 않는다 — 글 끝에 작은
+고지 한 줄만 붙인다 (공정위·쿠팡 필수 요건, 없으면 계정 정지 사유).
+
+실패해도 글 생성을 막지 않는다: 키가 없거나 검색이 실패하면
+원본 HTML을 그대로 돌려준다.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote
+
+import requests
+
+from .gemini_translator import resolve_api_key
+
+_COUPANG_DOMAIN = "https://api-gateway.coupang.com"
+_SEARCH_PATH = "/v2/providers/affiliate_open_api/apis/openapi/products/search"
+_GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+)
+
+DISCLOSURE_HTML = (
+    '<p style="font-size:11px;color:#999999;">'
+    "이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다."
+    "</p>"
+)
+
+# 상품명에서 의미 없는 수식어 (관련도 판단 시 제외)
+_STOP_WORDS = {"세트", "정품", "무료배송", "당일", "특가", "할인"}
+
+
+def _secret(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value
+    try:
+        import streamlit as st
+
+        return str(st.secrets.get(name, "")).strip()
+    except Exception:
+        return ""
+
+
+def _coupang_keys() -> tuple[str, str] | None:
+    access = _secret("COUPANG_ACCESS_KEY")
+    secret = _secret("COUPANG_SECRET_KEY")
+    if access and secret:
+        return access, secret
+    # 로컬 PC 테스트용 (클라우드에는 없음)
+    local = Path(__file__).parent.parent.parent / "Blogger_auto" / "coupang_keys.txt"
+    if local.exists():
+        lines = [x.strip() for x in local.read_text(encoding="utf-8").splitlines() if x.strip()]
+        if len(lines) >= 2:
+            return lines[0], lines[1]
+    return None
+
+
+def _cea_auth(method: str, path: str, query: str, access: str, secret: str) -> str:
+    signed_date = datetime.now(timezone.utc).strftime("%y%m%dT%H%M%SZ")
+    message = signed_date + method + path + query
+    signature = hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return (
+        f"CEA algorithm=HmacSHA256, access-key={access}, "
+        f"signed-date={signed_date}, signature={signature}"
+    )
+
+
+def search_product_url(keyword: str, keys: tuple[str, str]) -> str | None:
+    """쿠팡 상품 검색 → 파트너스 추적 링크. 검색어 핵심 토큰이 상품명에 있는 것 우선."""
+    access, secret = keys
+    query = f"keyword={quote(keyword)}&limit=5"
+    response = requests.get(
+        f"{_COUPANG_DOMAIN}{_SEARCH_PATH}?{query}",
+        headers={"Authorization": _cea_auth("GET", _SEARCH_PATH, query, access, secret)},
+        timeout=20,
+    )
+    response.raise_for_status()
+    products = (response.json().get("data") or {}).get("productData") or []
+    if not products:
+        return None
+
+    tokens = [t for t in keyword.split() if t not in _STOP_WORDS]
+
+    def relevance(product: dict) -> int:
+        name = str(product.get("productName", ""))
+        return sum(1 for t in tokens if t in name)
+
+    best = max(products, key=relevance)
+    return str(best.get("productUrl") or "") or None
+
+
+def pick_product_words(korean_text: str, gemini_config: dict | None) -> list[dict]:
+    """본문에 실제로 등장하는 '쿠팡에서 살 수 있는 실물' 단어 2~4개를 고른다.
+    반환: [{"word": 본문 그대로의 단어, "keyword": 쿠팡 검색어(짧게)}]"""
+    api_key = resolve_api_key(gemini_config)
+    if not api_key:
+        return []
+
+    prompt = f"""아래 한국어 글에서 '쿠팡에서 파는 실물 상품'에 해당하는 단어를 2~4개 골라라.
+
+규칙:
+- word는 반드시 글에 **그 표기 그대로** 등장하는 단어여야 한다 (조사 제외한 명사만. 예: 글에 '손전등을'이 있으면 word는 '손전등').
+- 실물이어야 한다: 인형, 거울, 베개, 손전등, 커튼, 시계, 카메라, 담요, 향초 같은 것.
+  사람·장소·추상어(엄마, 병원, 공포, 목소리)는 금지.
+- keyword는 그 상품을 쿠팡에서 검색할 짧은 검색어 (보통 word와 동일, 필요하면 1단어 보정).
+- 마땅한 게 2개가 안 되면 있는 만큼만. 억지로 채우지 마라.
+
+글:
+{korean_text[:4000]}
+
+출력은 JSON만: {{"items": [{{"word": "...", "keyword": "..."}}]}}"""
+
+    response = requests.post(
+        _GEMINI_URL,
+        params={"key": api_key},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    candidates = response.json().get("candidates") or []
+    text = "".join(
+        p.get("text", "")
+        for p in (candidates[0].get("content", {}).get("parts", []) if candidates else [])
+    ).strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        return []
+    try:
+        data = json.loads(text[start : end + 1], strict=False)
+    except ValueError:
+        return []
+    items = []
+    for item in data.get("items", []):
+        word = str(item.get("word", "")).strip()
+        keyword = str(item.get("keyword", "")).strip() or word
+        if word:
+            items.append({"word": word, "keyword": keyword})
+    return items[:4]
+
+
+def _link_word_in_html(html_content: str, word: str, url: str) -> tuple[str, bool]:
+    """HTML 본문 텍스트에서 word의 첫 등장에만 하이퍼링크를 단다.
+    태그 내부(속성 등)와 기존 링크 안은 건드리지 않는다."""
+    escaped_url = url.replace('"', "%22")
+    # (?![^<]*>) : 다음 '<'가 나오기 전에 '>'가 있으면(=태그 안이면) 매칭 금지
+    pattern = re.compile(re.escape(word) + r"(?![^<]*>)(?![^<]*</a>)")
+    replaced = pattern.sub(
+        f'<a href="{escaped_url}" target="_blank" rel="noopener sponsored">{word}</a>',
+        html_content,
+        count=1,
+    )
+    return replaced, replaced != html_content
+
+
+def embed_coupang_links(
+    html_content: str,
+    korean_text: str,
+    gemini_config: dict | None = None,
+    logger: logging.Logger | None = None,
+) -> str:
+    """본문 단어 2개 이상에 쿠팡 링크를 심고, 성공 시 끝에 고지 한 줄을 붙인다.
+    어떤 이유로든 실패하면 원본을 그대로 반환한다 (글 생성을 막지 않음)."""
+    try:
+        keys = _coupang_keys()
+        if not keys:
+            if logger:
+                logger.info("쿠팡 키 없음 — 링크 생략")
+            return html_content
+
+        words = pick_product_words(korean_text, gemini_config)
+        if not words:
+            if logger:
+                logger.info("본문에서 상품 단어를 찾지 못함 — 링크 생략")
+            return html_content
+
+        linked = 0
+        result = html_content
+        for item in words:
+            if linked >= 3:
+                break
+            try:
+                url = search_product_url(item["keyword"], keys)
+            except Exception as exc:
+                if logger:
+                    logger.warning("쿠팡 검색 실패(%s): %s", item["keyword"], exc)
+                continue
+            if not url:
+                continue
+            result, ok = _link_word_in_html(result, item["word"], url)
+            if ok:
+                linked += 1
+                if logger:
+                    logger.info("쿠팡 링크 삽입: %s", item["word"])
+
+        if linked == 0:
+            return html_content
+        return result + "\n" + DISCLOSURE_HTML
+    except Exception as exc:
+        if logger:
+            logger.warning("쿠팡 링크 처리 실패 — 원본 유지: %s", exc)
+        return html_content
