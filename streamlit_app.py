@@ -162,33 +162,41 @@ def _schedule_editor(label: str, repo: str, key: str) -> None:
 with tab_dash:
     st.subheader("🕹️ 원격 조종")
 
-    col_a, col_b = st.columns(2)
+    col_a, col_b, col_c = st.columns(3)
     with col_a:
-        if st.button("📝 블로거 글 지금 발행", use_container_width=True):
-            try:
-                dashboard.trigger_workflow(dashboard.BLOGGER_REPO)
-                st.success("실행 시작! 2~3분 뒤 블로그에 새 글이 올라옵니다.")
-            except Exception as exc:
-                st.error(f"실행 실패: {exc}")
-    with col_b:
         if st.button("🎬 유튜브 영상 지금 제작", use_container_width=True):
             try:
                 dashboard.trigger_workflow(dashboard.SHORTS_REPO)
                 st.success("실행 시작! 5~10분 뒤 유튜브에 업로드됩니다.")
             except Exception as exc:
                 st.error(f"실행 실패: {exc}")
-
-    col_c, col_d = st.columns(2)
+    with col_b:
+        if st.button("📝 블로거 글 지금 발행", use_container_width=True):
+            try:
+                dashboard.trigger_workflow(dashboard.BLOGGER_REPO)
+                st.success("실행 시작! 2~3분 뒤 블로그에 새 글이 올라옵니다.")
+            except Exception as exc:
+                st.error(f"실행 실패: {exc}")
     with col_c:
-        gen_two = st.button("👻 두 줄 괴담 글 생성", use_container_width=True)
+        if st.button("🍚 스레드 지금 게시", use_container_width=True):
+            try:
+                dashboard.trigger_workflow(dashboard.THREADS_REPO)
+                st.success("실행 시작! 2~3분 뒤 스레드에 게시됩니다. (오늘 상한을 채웠으면 건너뜀)")
+            except Exception as exc:
+                st.error(f"실행 실패: {exc}")
+
+    col_d, col_e = st.columns(2)
     with col_d:
+        gen_two = st.button("👻 두 줄 괴담 글 생성", use_container_width=True)
+    with col_e:
         gen_nosleep = st.button("👻 단편 괴담 글 생성", use_container_width=True)
     if gen_two or gen_nosleep:
         if _run_gwidam("two_sentence" if gen_two else "nosleep"):
             st.success("생성 완료! '👻 괴담티스토리' 탭에서 복사해 올리세요.")
 
-    _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
     _schedule_editor("유튜브 자동 업로드", dashboard.SHORTS_REPO, "shorts")
+    _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
+    _schedule_editor("스레드 자동 게시", dashboard.THREADS_REPO, "threads")
 
     # ── 지표 ──────────────────────────────────────────────
     st.divider()
@@ -198,14 +206,24 @@ with tab_dash:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_ad_status"):
+                      "m_threads", "m_ad_status"):
                 st.session_state.pop(k, None)
             st.rerun()
 
-    s_bl, bl = _metric_block(dashboard.blogger_stats, "m_blogger")
-    s_cp, cp = _metric_block(dashboard.coupang_stats, "m_coupang")
     s_yt, yt = _metric_block(dashboard.youtube_stats, "m_youtube")
+    s_bl, bl = _metric_block(dashboard.blogger_stats, "m_blogger")
+    s_th, th = _metric_block(dashboard.threads_stats, "m_threads")
+    s_cp, cp = _metric_block(dashboard.coupang_stats, "m_coupang")
     s_ad, adr = _metric_block(dashboard.adsense_stats, "m_adsense")
+
+    st.markdown("**🎬 유튜브 — 돈의 흐름 읽기**")
+    if s_yt == "ok":
+        c1, c2, c3 = st.columns(3)
+        c1.metric("구독자", f"{yt['subscribers']:,}")
+        c2.metric("총 조회수", f"{yt['views']:,}")
+        c3.metric("영상", f"{yt['videos']:,}개")
+    else:
+        st.caption(f"조회 실패: {yt}")
 
     st.markdown("**📝 Blogger — AI공부하는 직장인의 개발 노트**")
     if s_bl == "ok":
@@ -216,6 +234,15 @@ with tab_dash:
     else:
         st.caption(f"조회 실패: {bl}")
 
+    st.markdown(f"**🍚 스레드 집밥 — @{th.get('username', 'diet_zze') if s_th == 'ok' else '...'}**")
+    if s_th == "ok":
+        c1, c2, c3 = st.columns(3)
+        c1.metric("팔로워", f"{th['followers']:,}")
+        c2.metric("조회수", f"{th['views']:,}")
+        c3.metric("게시물", f"{th['posts']:,}개")
+    else:
+        st.caption(f"미연결: {th}")
+
     st.markdown("**🛒 쿠팡파트너스 (최근 30일)**")
     if s_cp == "ok":
         c1, c2 = st.columns(2)
@@ -223,15 +250,6 @@ with tab_dash:
         c2.metric("수수료", f"{cp['commission']:,.0f}원")
     else:
         st.caption(f"조회 실패: {cp}")
-
-    st.markdown("**🎬 유튜브 — 돈의 흐름 읽기**")
-    if s_yt == "ok":
-        c1, c2, c3 = st.columns(3)
-        c1.metric("구독자", f"{yt['subscribers']:,}")
-        c2.metric("총 조회수", f"{yt['views']:,}")
-        c3.metric("영상", f"{yt['videos']:,}개")
-    else:
-        st.caption(f"조회 실패: {yt}")
 
     st.markdown("**💰 애드센스 수익**")
     if s_ad == "ok":

@@ -29,6 +29,7 @@ ROOT = Path(__file__).parent
 BLOGGER_BLOG_ID = "1209531061110390976"
 BLOGGER_REPO = "hyjh1006-afk/blogger-auto"
 SHORTS_REPO = "hyjh1006-afk/market-shorts"
+THREADS_REPO = "hyjh1006-afk/threads-kitchen"
 
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
@@ -214,6 +215,74 @@ def youtube_stats() -> dict:
         "subscribers": int(stats.get("subscriberCount") or 0),
         "views": views,
         "videos": int(stats.get("videoCount") or 0),
+    }
+
+
+# ── 스레드 집밥 계정 (Threads API) ──────────────────────────
+
+def _threads_credentials() -> tuple[str, str] | None:
+    uid = _secret("THREADS_USER_ID")
+    token = _secret("THREADS_ACCESS_TOKEN")
+    if uid and token:
+        return uid, token
+    # 로컬 테스트용: threads-kitchen 폴더의 .env
+    env_path = ROOT.parent / "threads-kitchen" / ".env"
+    if env_path.exists():
+        values = {}
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                key, _, value = line.partition("=")
+                values[key.strip()] = value.strip()
+        uid = values.get("THREADS_USER_ID", "")
+        token = values.get("THREADS_ACCESS_TOKEN", "")
+        if uid and token:
+            return uid, token
+    return None
+
+
+def threads_stats() -> dict:
+    creds = _threads_credentials()
+    if not creds:
+        raise RuntimeError("스레드 토큰이 없습니다 (THREADS_USER_ID/ACCESS_TOKEN secrets 필요)")
+    uid, token = creds
+
+    profile = requests.get(
+        "https://graph.threads.net/v1.0/me",
+        params={"fields": "username", "access_token": token},
+        timeout=30,
+    )
+    profile.raise_for_status()
+    username = profile.json().get("username", "")
+
+    insights = requests.get(
+        f"https://graph.threads.net/v1.0/{uid}/threads_insights",
+        params={"metric": "followers_count,views", "access_token": token},
+        timeout=30,
+    )
+    insights.raise_for_status()
+    followers = views = 0
+    for metric in insights.json().get("data", []):
+        value = metric.get("total_value", {}).get("value")
+        if value is None and metric.get("values"):
+            value = metric["values"][-1].get("value")
+        if metric.get("name") == "followers_count":
+            followers = int(value or 0)
+        elif metric.get("name") == "views":
+            views = int(value or 0)
+
+    posts = requests.get(
+        "https://graph.threads.net/v1.0/me/threads",
+        params={"fields": "id", "limit": 100, "access_token": token},
+        timeout=30,
+    )
+    posts.raise_for_status()
+    post_count = len(posts.json().get("data", []))
+
+    return {
+        "username": username,
+        "followers": followers,
+        "views": views,
+        "posts": post_count,
     }
 
 
