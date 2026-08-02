@@ -369,8 +369,14 @@ def _gh_headers() -> dict:
     }
 
 
-def get_schedule(repo: str) -> tuple[list[str], str]:
-    """(times 목록, 파일 sha)"""
+def get_schedule(repo: str) -> tuple[dict[str, list[str]], str]:
+    """({칸 이름: 시각 목록}, 파일 sha).
+
+    두 가지 형식을 지원한다:
+    - {"times": [...]}                              → {"평일·주말": [...]}
+    - {"weekday_times": [...], "weekend_times": [...]} → {"평일": [...], "주말": [...]}
+    (2026-08-02: 유튜브가 평일/주말 분리 형식으로 바뀌면서 HQ에 시간이 안 뜨던 문제 수정)
+    """
     response = requests.get(
         f"{_GH_API}/repos/{repo}/contents/schedule.json",
         headers=_gh_headers(),
@@ -379,10 +385,21 @@ def get_schedule(repo: str) -> tuple[list[str], str]:
     response.raise_for_status()
     payload = response.json()
     data = json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
-    return [str(t) for t in data.get("times", [])], payload["sha"]
+    if "weekday_times" in data or "weekend_times" in data:
+        slots = {
+            "평일": [str(t) for t in data.get("weekday_times", [])],
+            "주말": [str(t) for t in data.get("weekend_times", [])],
+        }
+    else:
+        slots = {"매일": [str(t) for t in data.get("times", [])]}
+    return slots, payload["sha"]
 
 
-def save_schedule(repo: str, times: list[str], sha: str) -> None:
+_SLOT_KEYS = {"평일": "weekday_times", "주말": "weekend_times", "매일": "times"}
+
+
+def save_schedule(repo: str, slots: dict[str, list[str]], sha: str) -> None:
+    """{칸 이름: 시각 목록}을 저장소 형식에 맞춰 저장한다."""
     current = requests.get(
         f"{_GH_API}/repos/{repo}/contents/schedule.json",
         headers=_gh_headers(),
@@ -390,7 +407,11 @@ def save_schedule(repo: str, times: list[str], sha: str) -> None:
     )
     current.raise_for_status()
     data = json.loads(base64.b64decode(current.json()["content"]).decode("utf-8"))
-    data["times"] = times[:6]
+    for label, times in slots.items():
+        key = _SLOT_KEYS.get(label)
+        if key:
+            data[key] = times[:6]
+    times = [t for v in slots.values() for t in v]
 
     bot = {
         "name": "pipeline-hq",

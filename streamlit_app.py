@@ -23,6 +23,38 @@ except Exception:
 if _gemini_key:
     os.environ["GEMINI_API_KEY"] = _gemini_key
 
+
+# ── PIN 잠금 ────────────────────────────────────────────────
+# 이 앱에는 '지금 발행/제작/게시' 버튼이 있어 주소만 알면 누구나 실행할 수 있었다.
+# 모아이 랩과 같은 PIN을 Streamlit secrets(HQ_PIN)에 넣어 잠근다 (2026-08-02).
+def _require_pin() -> None:
+    try:
+        pin = str(st.secrets.get("HQ_PIN", "")).strip()
+    except Exception:
+        pin = ""
+    if not pin:
+        st.error(
+            "🔒 PIN이 설정되지 않았습니다.\n\n"
+            "Streamlit Cloud → 이 앱 ⋮ → Settings → Secrets 에 아래 한 줄을 추가하세요 "
+            "(기존 줄은 지우지 마세요):\n\n"
+            '```\nHQ_PIN = "모아이 랩과 같은 PIN"\n```'
+        )
+        st.stop()
+    if st.session_state.get("hq_auth"):
+        return
+    st.markdown("#### 🔒 파이프라인 HQ")
+    entered = st.text_input("PIN", type="password", key="hq_pin_input")
+    if st.button("들어가기", type="primary"):
+        if entered.strip() == pin:
+            st.session_state["hq_auth"] = True
+            st.rerun()
+        else:
+            st.error("PIN이 맞지 않아요")
+    st.stop()
+
+
+_require_pin()
+
 import dashboard
 import github_state
 from src.json_store import read_json
@@ -135,22 +167,44 @@ def _run_gwidam(mode: str, start_number: int = 0) -> None:
 
 
 def _schedule_editor(label: str, repo: str, key: str) -> None:
-    """저장소의 schedule.json times를 조회·수정하는 작은 UI."""
+    """저장소의 시간표를 조회·수정하는 작은 UI.
+
+    평일/주말이 나뉜 저장소(유튜브)는 칸이 두 개로 나온다.
+    """
     try:
-        times, sha = dashboard.get_schedule(repo)
+        slots, sha = dashboard.get_schedule(repo)
     except Exception as exc:
         st.caption(f"{label} 시간표를 불러오지 못했어요: {exc}")
         return
-    raw = st.text_input(
-        f"{label} 시간표 (쉼표로 구분, 한국시간 30분 단위)",
-        value=", ".join(times),
-        key=f"sched_{key}",
-    )
+
+    inputs = {}
+    if len(slots) > 1:
+        st.markdown(f"**{label} 시간표** (쉼표로 구분, 한국시간 30분 단위)")
+        cols = st.columns(len(slots))
+        for col, (name, times) in zip(cols, slots.items()):
+            with col:
+                inputs[name] = st.text_input(
+                    name, value=", ".join(times), key=f"sched_{key}_{name}"
+                )
+    else:
+        name, times = next(iter(slots.items()))
+        inputs[name] = st.text_input(
+            f"{label} 시간표 (쉼표로 구분, 한국시간 30분 단위)",
+            value=", ".join(times),
+            key=f"sched_{key}",
+        )
+
     if st.button(f"{label} 시간표 저장", key=f"save_{key}"):
-        new_times = [t.strip() for t in raw.split(",") if t.strip()][:6]
+        new_slots = {
+            name: [t.strip() for t in raw.split(",") if t.strip()][:6]
+            for name, raw in inputs.items()
+        }
         try:
-            dashboard.save_schedule(repo, new_times, sha)
-            st.success(f"저장 완료: {', '.join(new_times) or '(자동 생성 끔)'}")
+            dashboard.save_schedule(repo, new_slots, sha)
+            summary = " · ".join(
+                f"{n}: {', '.join(v) or '(끔)'}" for n, v in new_slots.items()
+            )
+            st.success(f"저장 완료 — {summary}")
         except Exception as exc:
             st.error(f"저장 실패: {exc}")
 
