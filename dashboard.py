@@ -5,9 +5,10 @@
 - Blogger 조회수 (pageviews API)
 - 쿠팡파트너스 실적 (commission report API)
 - 유튜브 채널 통계 (YouTube Data API)
+- 집밥 WordPress 조회·글 수 + Bluesky 게시물·반응 (발행 저장소 실측 상태)
 
 원격 조종 (GitHub API):
-- blogger-auto / market-shorts 저장소의 schedule.json 조회·수정
+- blogger-auto / market-shorts / threads-kitchen 저장소의 schedule.json 조회·수정
 - 워크플로우 즉시 실행 (지금 글 발행 / 지금 영상 제작)
 
 인증값 우선순위: Streamlit secrets → 환경변수 → 로컬 파일(PC 테스트용)
@@ -29,7 +30,8 @@ ROOT = Path(__file__).parent
 BLOGGER_BLOG_ID = "1209531061110390976"
 BLOGGER_REPO = "hyjh1006-afk/blogger-auto"
 SHORTS_REPO = "hyjh1006-afk/market-shorts"
-THREADS_REPO = "hyjh1006-afk/threads-kitchen"
+KITCHEN_REPO = "hyjh1006-afk/threads-kitchen"
+KITCHEN_WORKFLOW = "daily-recipe-publisher.yml"
 
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
@@ -218,73 +220,42 @@ def youtube_stats() -> dict:
     }
 
 
-# ── 스레드 집밥 계정 (Threads API) ──────────────────────────
+# ── 집밥 채널 (WordPress.com + Bluesky) ─────────────────────
 
-def _threads_credentials() -> tuple[str, str] | None:
-    uid = _secret("THREADS_USER_ID")
-    token = _secret("THREADS_ACCESS_TOKEN")
-    if uid and token:
-        return uid, token
-    # 로컬 테스트용: threads-kitchen 폴더의 .env
-    env_path = ROOT.parent / "threads-kitchen" / ".env"
-    if env_path.exists():
-        values = {}
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.strip().startswith("#"):
-                key, _, value = line.partition("=")
-                values[key.strip()] = value.strip()
-        uid = values.get("THREADS_USER_ID", "")
-        token = values.get("THREADS_ACCESS_TOKEN", "")
-        if uid and token:
-            return uid, token
-    return None
+def kitchen_stats() -> dict:
+    """발행 저장소가 기록한 플랫폼 실측 지표를 읽는다.
 
+    WordPress 조회수 API는 OAuth가 필요하므로 발행 워크플로가 기존 비밀값으로
+    수집하고, HQ에는 숫자만 공유한다. 로컬에서는 같은 폴더의 상태를 우선 사용한다.
+    """
+    local_path = ROOT.parent / "threads-kitchen" / "state" / "channel_metrics.json"
+    if local_path.exists():
+        data = json.loads(local_path.read_text(encoding="utf-8"))
+    else:
+        try:
+            headers = _gh_headers()
+        except RuntimeError:
+            headers = {
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+        response = requests.get(
+            f"{_GH_API}/repos/{KITCHEN_REPO}/contents/state/channel_metrics.json",
+            headers=headers,
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
 
-def threads_stats() -> dict:
-    creds = _threads_credentials()
-    if not creds:
-        raise RuntimeError("스레드 토큰이 없습니다 (THREADS_USER_ID/ACCESS_TOKEN secrets 필요)")
-    uid, token = creds
-
-    profile = requests.get(
-        "https://graph.threads.net/v1.0/me",
-        params={"fields": "username", "access_token": token},
-        timeout=30,
-    )
-    profile.raise_for_status()
-    username = profile.json().get("username", "")
-
-    insights = requests.get(
-        f"https://graph.threads.net/v1.0/{uid}/threads_insights",
-        params={"metric": "followers_count,views", "access_token": token},
-        timeout=30,
-    )
-    insights.raise_for_status()
-    followers = views = 0
-    for metric in insights.json().get("data", []):
-        value = metric.get("total_value", {}).get("value")
-        if value is None and metric.get("values"):
-            value = metric["values"][-1].get("value")
-        if metric.get("name") == "followers_count":
-            followers = int(value or 0)
-        elif metric.get("name") == "views":
-            views = int(value or 0)
-
-    posts = requests.get(
-        "https://graph.threads.net/v1.0/me/threads",
-        params={"fields": "id", "limit": 100, "access_token": token},
-        timeout=30,
-    )
-    posts.raise_for_status()
-    post_count = len(posts.json().get("data", []))
-
+    wordpress = data.get("wordpress") or {}
+    if not wordpress:
+        raise RuntimeError("WordPress 실측 지표가 아직 없습니다")
     return {
-        "username": username,
-        "followers": followers,
-        "views": views,
-        "posts": post_count,
+        "updated_at": data.get("updated_at", ""),
+        "wordpress": wordpress,
+        "bluesky": data.get("bluesky"),
     }
-
 
 # ── 애드센스 수익 (AdSense Management API) ──────────────────
 

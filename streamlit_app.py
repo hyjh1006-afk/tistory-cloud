@@ -179,7 +179,7 @@ def _schedule_editor(label: str, repo: str, key: str) -> None:
 
     inputs = {}
     if len(slots) > 1:
-        st.markdown(f"**{label} 시간표** (쉼표로 구분, 한국시간 30분 단위)")
+        st.markdown(f"**{label} 시간표** (쉼표로 구분, 한국시간 HH:MM)")
         cols = st.columns(len(slots))
         for col, (name, times) in zip(cols, slots.items()):
             with col:
@@ -189,7 +189,7 @@ def _schedule_editor(label: str, repo: str, key: str) -> None:
     else:
         name, times = next(iter(slots.items()))
         inputs[name] = st.text_input(
-            f"{label} 시간표 (쉼표로 구분, 한국시간 30분 단위)",
+            f"{label} 시간표 (쉼표로 구분, 한국시간 HH:MM)",
             value=", ".join(times),
             key=f"sched_{key}",
         )
@@ -232,10 +232,12 @@ with tab_dash:
             except Exception as exc:
                 st.error(f"실행 실패: {exc}")
     with col_c:
-        if st.button("🍚 스레드 지금 게시", use_container_width=True):
+        if st.button("🍚 워드프레스+블루스카이 지금 발행", use_container_width=True):
             try:
-                dashboard.trigger_workflow(dashboard.THREADS_REPO)
-                st.success("실행 시작! 2~3분 뒤 스레드에 게시됩니다. (오늘 상한을 채웠으면 건너뜀)")
+                dashboard.trigger_workflow(
+                    dashboard.KITCHEN_REPO, dashboard.KITCHEN_WORKFLOW
+                )
+                st.success("실행 시작! 워드프레스 글 발행 후 블루스카이에 홍보됩니다. (오늘 상한을 채웠으면 건너뜀)")
             except Exception as exc:
                 st.error(f"실행 실패: {exc}")
 
@@ -250,7 +252,7 @@ with tab_dash:
 
     _schedule_editor("유튜브 자동 업로드", dashboard.SHORTS_REPO, "shorts")
     _schedule_editor("블로거 자동 발행", dashboard.BLOGGER_REPO, "blogger")
-    _schedule_editor("스레드 자동 게시", dashboard.THREADS_REPO, "threads")
+    _schedule_editor("집밥 채널 자동 발행", dashboard.KITCHEN_REPO, "kitchen")
 
     # ── 지표 ──────────────────────────────────────────────
     st.divider()
@@ -260,13 +262,13 @@ with tab_dash:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_threads", "m_ad_status"):
+                      "m_kitchen", "m_ad_status"):
                 st.session_state.pop(k, None)
             st.rerun()
 
     s_yt, yt = _metric_block(dashboard.youtube_stats, "m_youtube")
     s_bl, bl = _metric_block(dashboard.blogger_stats, "m_blogger")
-    s_th, th = _metric_block(dashboard.threads_stats, "m_threads")
+    s_ki, kitchen = _metric_block(dashboard.kitchen_stats, "m_kitchen")
     s_cp, cp = _metric_block(dashboard.coupang_stats, "m_coupang")
     s_ad, adr = _metric_block(dashboard.adsense_stats, "m_adsense")
 
@@ -288,14 +290,28 @@ with tab_dash:
     else:
         st.caption(f"조회 실패: {bl}")
 
-    st.markdown(f"**🍚 스레드 집밥 — @{th.get('username', 'diet_zze') if s_th == 'ok' else '...'}**")
-    if s_th == "ok":
+    st.markdown("**🍚 [집밥 워드프레스](https://pparkzzekitchen.wordpress.com/)**")
+    if s_ki == "ok":
+        wp = kitchen["wordpress"]
         c1, c2, c3 = st.columns(3)
-        c1.metric("팔로워", f"{th['followers']:,}")
-        c2.metric("조회수", f"{th['views']:,}")
-        c3.metric("게시물", f"{th['posts']:,}개")
+        c1.metric("총 조회수", f"{wp['views_all']:,}")
+        c2.metric("최근 7일", f"{wp['views_7d']:,}")
+        c3.metric("발행 글", f"{wp['posts']:,}개")
+
+        bsky = kitchen.get("bluesky")
+        st.markdown("**🦋 [블루스카이 — @pparkzze.bsky.social](https://bsky.app/profile/pparkzze.bsky.social)**")
+        if bsky:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("팔로워", f"{bsky['followers']:,}")
+            c2.metric("게시물", f"{bsky['posts']:,}개")
+            c3.metric("반응", f"{bsky['engagements']:,}건")
+            st.caption("블루스카이는 게시물 조회수를 공개하지 않아 좋아요·재게시·답글·인용만 실측합니다.")
+        else:
+            st.caption("블루스카이 계정 연결 전")
+        if kitchen.get("updated_at"):
+            st.caption(f"마지막 지표 수집: {kitchen['updated_at']}")
     else:
-        st.caption(f"미연결: {th}")
+        st.caption(f"조회 실패: {kitchen}")
 
     st.markdown("**🛒 쿠팡파트너스 (최근 30일)**")
     if s_cp == "ok":
