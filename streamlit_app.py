@@ -297,7 +297,7 @@ with tab_dash:
         c1.metric("팔로워", f"{bsky['followers']:,}")
         c2.metric("전체 글", f"{bsky['posts']:,}개")
         c3.metric("반응", f"{bsky['engagements']:,}건")
-        st.caption("매일 사진 메인 글 → 재료 → 조리법·팁의 영어 3단 스레드로 발행합니다. 조회수는 공개되지 않아 좋아요·재게시·답글·인용만 실측합니다.")
+        st.caption("매일 사진 메인 글 → 재료 → 조리법·팁+쿠팡 파트너스 링크의 영어 3단 스레드로 발행합니다. 조회수는 공개되지 않아 좋아요·재게시·답글·인용만 실측합니다.")
         if kitchen.get("updated_at"):
             st.caption(f"마지막 지표 수집: {kitchen['updated_at']}")
     else:
