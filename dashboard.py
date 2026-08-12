@@ -5,7 +5,7 @@
 - Blogger 조회수 (pageviews API)
 - 쿠팡파트너스 실적 (commission report API)
 - 유튜브 채널 통계 (YouTube Data API)
-- 집밥 WordPress 조회·글 수 + Bluesky 게시물·반응 (발행 저장소 실측 상태)
+- 집밥 Bluesky 영어 레시피 스레드 게시물·반응 (발행 저장소 실측 상태)
 
 원격 조종 (GitHub API):
 - blogger-auto / market-shorts / threads-kitchen 저장소의 schedule.json 조회·수정
@@ -220,13 +220,13 @@ def youtube_stats() -> dict:
     }
 
 
-# ── 집밥 채널 (WordPress.com + Bluesky) ─────────────────────
+# ── 집밥 채널 (Bluesky) ─────────────────────────────────────
 
 def kitchen_stats() -> dict:
-    """발행 저장소가 기록한 플랫폼 실측 지표를 읽는다.
+    """발행 저장소가 기록한 Bluesky 실측 지표를 읽는다.
 
-    WordPress 조회수 API는 OAuth가 필요하므로 발행 워크플로가 기존 비밀값으로
-    수집하고, HQ에는 숫자만 공유한다. 로컬에서는 같은 폴더의 상태를 우선 사용한다.
+    로컬에서는 같은 폴더의 상태를 우선 사용하고, 배포 환경에서는 GitHub에
+    기록된 최신 채널 지표를 읽는다.
     """
     local_path = ROOT.parent / "threads-kitchen" / "state" / "channel_metrics.json"
     if local_path.exists():
@@ -248,13 +248,12 @@ def kitchen_stats() -> dict:
         payload = response.json()
         data = json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
 
-    wordpress = data.get("wordpress") or {}
-    if not wordpress:
-        raise RuntimeError("WordPress 실측 지표가 아직 없습니다")
+    bluesky = data.get("bluesky") or {}
+    if not bluesky:
+        raise RuntimeError("Bluesky 실측 지표가 아직 없습니다")
     return {
         "updated_at": data.get("updated_at", ""),
-        "wordpress": wordpress,
-        "bluesky": data.get("bluesky"),
+        "bluesky": bluesky,
     }
 
 # ── 애드센스 수익 (AdSense Management API) ──────────────────
