@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-08-23 18:11",
+  "updated_at": "2026-08-23 20:30",
   "note": "앱인토스 콘솔은 공개 API가 없어 매일 저녁 7시 관제 작업이 콘솔을 읽어 이 파일을 갱신한다. 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다.",
-  "released": 6,
+  "released": 7,
   "total_apps": 7,
-  "total_users": 204,
+  "total_users": 216,
   "users_delta": 12,
   "open_inquiries": 0,
   "impressions": 6,
@@ -11,23 +11,60 @@
   "settled_revenue_krw": 0,
   "commission_rate": "0% (면제 프로모션)",
   "apps": [
-    {"name": "여름 옆자리", "type": "전면형", "impressions": 3, "cpm_krw": 2000, "revenue_krw": 6},
-    {"name": "세탁기 넣어도 돼?", "type": "전면형", "impressions": 1, "cpm_krw": 5000, "revenue_krw": 5},
-    {"name": "ADHD야 나가자", "type": "전면형", "impressions": 1, "cpm_krw": 4000, "revenue_krw": 4},
-    {"name": "여보세요", "type": "전면형", "impressions": 1, "cpm_krw": 4000, "revenue_krw": 4},
-    {"name": "오늘 버려도 돼?", "type": "전면형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "월요일 파쇄소", "type": "보상형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "빙고빙수", "type": "보상형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0}
+    {
+      "name": "여름 옆자리",
+      "type": "전면형",
+      "impressions": 3,
+      "cpm_krw": 2000,
+      "revenue_krw": 6
+    },
+    {
+      "name": "세탁기 넣어도 돼?",
+      "type": "전면형",
+      "impressions": 1,
+      "cpm_krw": 5000,
+      "revenue_krw": 5
+    },
+    {
+      "name": "ADHD야 나가자",
+      "type": "전면형",
+      "impressions": 1,
+      "cpm_krw": 4000,
+      "revenue_krw": 4
+    },
+    {
+      "name": "여보세요",
+      "type": "전면형",
+      "impressions": 1,
+      "cpm_krw": 4000,
+      "revenue_krw": 4
+    },
+    {
+      "name": "오늘 버려도 돼?",
+      "type": "전면형",
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "월요일 파쇄소",
+      "type": "보상형",
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "빙고빙수",
+      "type": "보상형",
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    }
   ],
   "pending_review": [
-    "여보세요 20260823-20",
-    "세탁기 넣어도 돼? 20260823-6",
     "여름 옆자리 20260823-5",
-    "ADHD야 나가자 20260823-17",
-    "월요일 파쇄소 20260823-8",
-    "오늘 버려도 돼? 20260823-11",
     "빙고빙수 20260823-11"
   ],
-  "pending_review_note": "8/23 17시대에 7개 전부 '리뷰 요청 팝업' 버전을 제출했다. 빙고빙수만 아직 광고 버전이 미출시(현재 20260727-7). 8/19 공지 기준 강화로 검수가 최대 1주일 걸릴 수 있다.",
+  "pending_review_note": "8/23 20시대에 리뷰 요청 버전 5개가 승인돼 출시됐다. 여름 옆자리와 빙고빙수만 아직 검수 중이다. 빙고빙수는 여전히 광고 버전이 한 번도 출시되지 못했다(현재 20260727-7).",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176"
 }
