@@ -1,0 +1,24 @@
+{
+  "updated_at": "2026-08-23",
+  "note": "앱인토스 콘솔은 공개 API가 없어 매일 저녁 7시 관제 작업이 콘솔을 읽어 이 파일을 갱신한다. 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다.",
+  "released": 6,
+  "total_apps": 7,
+  "total_users": 204,
+  "users_delta": 12,
+  "open_inquiries": 0,
+  "impressions": 6,
+  "estimated_revenue_krw": 19,
+  "settled_revenue_krw": 0,
+  "commission_rate": "0% (면제 프로모션)",
+  "apps": [
+    {"name": "여름 옆자리", "type": "전면형", "impressions": 3, "cpm_krw": 2000, "revenue_krw": 6},
+    {"name": "세탁기 넣어도 돼?", "type": "전면형", "impressions": 1, "cpm_krw": 5000, "revenue_krw": 5},
+    {"name": "ADHD야 나가자", "type": "전면형", "impressions": 1, "cpm_krw": 4000, "revenue_krw": 4},
+    {"name": "여보세요", "type": "전면형", "impressions": 1, "cpm_krw": 4000, "revenue_krw": 4},
+    {"name": "오늘 버려도 돼?", "type": "전면형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
+    {"name": "월요일 파쇄소", "type": "보상형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
+    {"name": "빙고빙수", "type": "보상형", "impressions": 0, "cpm_krw": 0, "revenue_krw": 0}
+  ],
+  "pending_review": ["빙고빙수 20260822-10"],
+  "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176"
+}

@@ -32,6 +32,7 @@ BLOGGER_REPO = "hyjh1006-afk/blogger-auto"
 SHORTS_REPO = "hyjh1006-afk/market-shorts"
 KITCHEN_REPO = "hyjh1006-afk/threads-kitchen"
 KITCHEN_WORKFLOW = "daily-recipe-publisher.yml"
+HQ_REPO = "hyjh1006-afk/tistory-cloud"  # 이 대시보드 자신의 저장소 (상태 파일을 여기서 읽는다)
 
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
@@ -326,6 +327,34 @@ def adsense_stats() -> dict:
 # ── GitHub 원격 조종 (시간표·즉시 실행) ─────────────────────
 
 _GH_API = "https://api.github.com"
+
+
+def toss_ads_stats() -> dict:
+    """토스 미니앱 인앱 광고 현황을 읽는다.
+
+    앱인토스 콘솔은 공개 API가 없어서 매일 저녁 관제 작업이 콘솔을 훑어
+    state/toss_ads.json 을 갱신한다. 여기서는 그 파일만 읽는다.
+    로컬에서는 같은 폴더의 상태를, 배포 환경에서는 GitHub에 올라간 파일을 쓴다.
+    """
+    local_path = ROOT / "state" / "toss_ads.json"
+    if local_path.exists():
+        return json.loads(local_path.read_text(encoding="utf-8"))
+
+    try:
+        headers = _gh_headers()
+    except RuntimeError:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+    response = requests.get(
+        f"{_GH_API}/repos/{HQ_REPO}/contents/state/toss_ads.json",
+        headers=headers,
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    return json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
 
 
 def _gh_headers() -> dict:

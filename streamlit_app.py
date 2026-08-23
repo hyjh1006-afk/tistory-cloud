@@ -262,7 +262,7 @@ with tab_dash:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_kitchen", "m_ad_status"):
+                      "m_kitchen", "m_ad_status", "m_toss_ads"):
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -271,6 +271,43 @@ with tab_dash:
     s_ki, kitchen = _metric_block(dashboard.kitchen_stats, "m_kitchen")
     s_cp, cp = _metric_block(dashboard.coupang_stats, "m_coupang")
     s_ad, adr = _metric_block(dashboard.adsense_stats, "m_adsense")
+    s_toss, toss = _metric_block(dashboard.toss_ads_stats, "m_toss_ads")
+
+    st.markdown("**📱 토스 미니앱 — 인앱 광고**")
+    if s_toss == "ok":
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("출시", f"{toss['released']}/{toss['total_apps']}개")
+        c2.metric("총 유저", f"{toss['total_users']:,}", f"+{toss['users_delta']}")
+        c3.metric("광고 노출", f"{toss['impressions']:,}회")
+        c4.metric("예상 수익", f"{toss['estimated_revenue_krw']:,}원")
+        earning = [a for a in toss["apps"] if a["impressions"] > 0]
+        if earning:
+            st.dataframe(
+                [
+                    {
+                        "앱": a["name"],
+                        "형태": a["type"],
+                        "노출": f"{a['impressions']:,}회",
+                        "1천회 단가": f"{a['cpm_krw']:,}원",
+                        "예상 수익": f"{a['revenue_krw']:,}원",
+                    }
+                    for a in earning
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+        pending = toss.get("pending_review") or []
+        bits = [f"수수료 {toss['commission_rate']}", f"문의 {toss['open_inquiries']}건"]
+        if pending:
+            bits.append("검토 중 " + ", ".join(pending))
+        st.caption(
+            f"{toss['updated_at']} 기준 · " + " · " .join(bits)
+            + " · 예상 수익은 콘솔 추정값이라 정산 확정 금액과 다를 수 있어요."
+        )
+        if toss.get("dashboard_url"):
+            st.caption(f"[미니앱 관제 페이지 열기]({toss['dashboard_url']})")
+    else:
+        st.caption(f"조회 실패: {toss}")
 
     st.markdown("**🎬 유튜브 — 돈의 흐름 읽기**")
     if s_yt == "ok":
