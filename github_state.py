@@ -30,6 +30,15 @@ API_BASE = "https://api.github.com"
 
 
 def _settings() -> tuple[str, str, str] | None:
+    # 맥에서 CLI로 돌릴 때는 환경변수를 먼저 본다 (클라우드는 그대로 secrets 사용).
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    repo = os.environ.get("STATE_REPO", "").strip()
+    branch = os.environ.get("STATE_BRANCH", "main").strip() or "main"
+    if token and repo:
+        return token, repo, branch
+
     try:
         import streamlit as st
 

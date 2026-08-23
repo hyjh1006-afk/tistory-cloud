@@ -13,3 +13,6 @@ __pycache__/
 DEPLOY_SECRETS.txt
 /last_output.json
 /stage2_token.json
+
+# 맥에서 만든 글 원본 (GitHub 대기목록으로 따로 올라감)
+state/local_outputs/

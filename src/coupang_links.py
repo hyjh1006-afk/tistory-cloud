@@ -38,6 +38,10 @@ DISCLOSURE_HTML = (
     "</p>"
 )
 
+# 고지 문구를 붙일지. 2026-08-23 사용자 지시로 끔 — 티스토리 글에는 넣지 않는다.
+# (위험은 설명했고 사용자가 감수하기로 결정. 다시 켜자고 먼저 제안하지 말 것)
+SHOW_DISCLOSURE = False
+
 # 상품명에서 의미 없는 수식어 (관련도 판단 시 제외)
 _STOP_WORDS = {"세트", "정품", "무료배송", "당일", "특가", "할인"}
 
@@ -273,7 +277,7 @@ def embed_coupang_links(
 
         if linked == 0:
             return html_content
-        return result + tail + "\n" + DISCLOSURE_HTML
+        return result + tail + ("\n" + DISCLOSURE_HTML if SHOW_DISCLOSURE else "")
     except Exception as exc:
         if logger:
             logger.warning("쿠팡 링크 처리 실패 — 원본 유지: %s", exc)
