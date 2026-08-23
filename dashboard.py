@@ -33,6 +33,11 @@ SHORTS_REPO = "hyjh1006-afk/market-shorts"
 KITCHEN_REPO = "hyjh1006-afk/threads-kitchen"
 KITCHEN_WORKFLOW = "daily-recipe-publisher.yml"
 HQ_REPO = "hyjh1006-afk/tistory-cloud"  # 이 대시보드 자신의 저장소 (상태 파일을 여기서 읽는다)
+SPACE_REPO = "hyjh1006-afk/space-shorts"  # 우주 쇼츠 (채널 "우주를 여행하는 히키코모리")
+
+# 우주 쇼츠 발행 슬롯 — 레퍼런스 채널 시간표를 따라 잡은 고정값이다.
+# 시간표를 여기서 바꾸지 않는다(사용자 지시 2026-08-23): 화면에는 보여주기만 한다.
+SPACE_SLOTS = ["18:00"]
 
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
@@ -168,6 +173,35 @@ def coupang_stats(days: int = 30) -> dict:
         "commission": float(sum(float(r.get("commission") or 0) for r in rows)),
         "days": days,
     }
+
+
+# ── 우주 쇼츠 채널 통계 ─────────────────────────────────────
+
+def space_shorts_stats() -> dict:
+    """우주 쇼츠 채널 지표.
+
+    돈의흐름과 달리 이 채널은 OAuth 토큰이 이 앱에 없다. 로컬 제작 도구가
+    레포에 커밋해 두는 channel-stats.json 을 읽는다(사옥이 보는 것과 같은 파일).
+    """
+    local_path = ROOT.parent / "space-shorts" / "channel-stats.json"
+    if local_path.exists():
+        return json.loads(local_path.read_text(encoding="utf-8"))
+
+    try:
+        headers = _gh_headers()
+    except RuntimeError:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+    response = requests.get(
+        f"{_GH_API}/repos/{SPACE_REPO}/contents/channel-stats.json",
+        headers=headers,
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    return json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
 
 
 # ── 유튜브 채널 통계 ────────────────────────────────────────

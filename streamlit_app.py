@@ -262,10 +262,11 @@ with tab_dash:
     with top_right:
         if st.button("🔄 새로고침", key="dash_refresh", use_container_width=True):
             for k in ("m_blogger", "m_coupang", "m_youtube", "m_adsense",
-                      "m_kitchen", "m_ad_status", "m_toss_ads"):
+                      "m_kitchen", "m_ad_status", "m_toss_ads", "m_space"):
                 st.session_state.pop(k, None)
             st.rerun()
 
+    s_sp, sp = _metric_block(dashboard.space_shorts_stats, "m_space")
     s_yt, yt = _metric_block(dashboard.youtube_stats, "m_youtube")
     s_bl, bl = _metric_block(dashboard.blogger_stats, "m_blogger")
     s_ki, kitchen = _metric_block(dashboard.kitchen_stats, "m_kitchen")
@@ -308,6 +309,37 @@ with tab_dash:
             st.caption(f"[미니앱 관제 페이지 열기]({toss['dashboard_url']})")
     else:
         st.caption(f"조회 실패: {toss}")
+
+    st.markdown("**🚀 유튜브 — 우주를 여행하는 히키코모리**")
+    if s_sp == "ok":
+        c1, c2, c3 = st.columns(3)
+        c1.metric("구독자", f"{sp.get('subs', 0):,}")
+        c2.metric("총 조회수", f"{sp.get('views', 0):,}")
+        c3.metric("영상", f"{sp.get('video_count', 0):,}개")
+        vids = sp.get("videos") or []
+        if vids:
+            st.dataframe(
+                [
+                    {
+                        "영상": v["title"],
+                        "조회": f"{v.get('views', 0):,}회",
+                        "좋아요": f"{v.get('likes', 0):,}",
+                        "댓글": f"{v.get('comments', 0):,}",
+                    }
+                    for v in vids[:5]
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+        # 발행 시간표는 보여주기만 한다 — 여기서 고치지 않는다(사용자 지시 2026-08-23)
+        st.caption(
+            f"발행 시간표 {' · '.join(dashboard.SPACE_SLOTS)} 하루 {len(dashboard.SPACE_SLOTS)}편 "
+            "(고정 — 여기서는 못 바꿔요) · "
+            f"[{sp.get('handle', '')}]({sp.get('url', '')}) · "
+            f"갱신 {sp.get('updated_at', '')[:16].replace('T', ' ')}"
+        )
+    else:
+        st.caption(f"조회 실패: {sp}")
 
     st.markdown("**🎬 유튜브 — 돈의 흐름 읽기**")
     if s_yt == "ok":
