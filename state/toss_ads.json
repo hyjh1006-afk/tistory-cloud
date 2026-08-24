@@ -1,16 +1,30 @@
 {
-  "updated_at": "2026-08-23 20:30",
-  "note": "앱인토스 콘솔은 공개 API가 없어 매일 저녁 7시 관제 작업이 콘솔을 읽어 이 파일을 갱신한다. 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다.",
+  "updated_at": "2026-08-24 19:00",
+  "note": "앱인토스 콘솔은 공개 API가 없어 매일 저녁 관제 작업이 콘솔을 읽어 이 파일을 갱신한다. 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다.",
   "released": 7,
   "total_apps": 7,
-  "total_users": 216,
-  "users_delta": 12,
+  "total_users": 219,
+  "users_delta": 3,
   "open_inquiries": 0,
-  "impressions": 6,
-  "estimated_revenue_krw": 19,
+  "impressions": 12,
+  "estimated_revenue_krw": 39,
   "settled_revenue_krw": 0,
-  "commission_rate": "0% (면제 프로모션)",
+  "commission_rate": "0% (면제 프로모션, 정가 15%)",
   "apps": [
+    {
+      "name": "여보세요",
+      "type": "전면형",
+      "impressions": 4,
+      "cpm_krw": 4000,
+      "revenue_krw": 16
+    },
+    {
+      "name": "월요일 파쇄소",
+      "type": "보상형",
+      "impressions": 3,
+      "cpm_krw": 2667,
+      "revenue_krw": 8
+    },
     {
       "name": "여름 옆자리",
       "type": "전면형",
@@ -33,22 +47,8 @@
       "revenue_krw": 4
     },
     {
-      "name": "여보세요",
-      "type": "전면형",
-      "impressions": 1,
-      "cpm_krw": 4000,
-      "revenue_krw": 4
-    },
-    {
       "name": "오늘 버려도 돼?",
       "type": "전면형",
-      "impressions": 0,
-      "cpm_krw": 0,
-      "revenue_krw": 0
-    },
-    {
-      "name": "월요일 파쇄소",
-      "type": "보상형",
       "impressions": 0,
       "cpm_krw": 0,
       "revenue_krw": 0
@@ -61,10 +61,7 @@
       "revenue_krw": 0
     }
   ],
-  "pending_review": [
-    "여름 옆자리 20260823-5",
-    "빙고빙수 20260823-11"
-  ],
-  "pending_review_note": "8/23 20시대에 리뷰 요청 버전 5개가 승인돼 출시됐다. 여름 옆자리와 빙고빙수만 아직 검수 중이다. 빙고빙수는 여전히 광고 버전이 한 번도 출시되지 못했다(현재 20260727-7).",
+  "pending_review": [],
+  "pending_review_note": "8/24 18:54~18:55에 여름 옆자리 20260823-5와 빙고빙수 20260823-11을 출시했다. 빙고빙수는 광고가 들어간 버전이 처음 나갔다(직전까지 20260727-7). 7개 앱 모두 8/23자 최신 번들이 라이브이고 검토 대기는 0건이다.",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176"
 }
