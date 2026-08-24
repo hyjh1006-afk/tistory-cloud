@@ -1,10 +1,10 @@
 {
-  "updated_at": "2026-08-24 19:00",
+  "updated_at": "2026-08-24 19:26",
   "note": "앱인토스 콘솔은 공개 API가 없어 매일 저녁 관제 작업이 콘솔을 읽어 이 파일을 갱신한다. 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다.",
   "released": 7,
   "total_apps": 7,
-  "total_users": 219,
-  "users_delta": 3,
+  "total_users": 220,
+  "users_delta": 1,
   "open_inquiries": 0,
   "impressions": 12,
   "estimated_revenue_krw": 39,
@@ -62,6 +62,6 @@
     }
   ],
   "pending_review": [],
-  "pending_review_note": "8/24 18:54~18:55에 여름 옆자리 20260823-5와 빙고빙수 20260823-11을 출시했다. 빙고빙수는 광고가 들어간 버전이 처음 나갔다(직전까지 20260727-7). 7개 앱 모두 8/23자 최신 번들이 라이브이고 검토 대기는 0건이다.",
+  "pending_review_note": "19:00 점검 26분 뒤 재점검. 출시·광고·리뷰·문의 모두 변화 없음(검토 대기 0건, 노출 12회 39원, 문의 0건). 유저만 여름 옆자리 +1로 220명. 정산 내역은 7개 앱 전부 '-'이며 8월분은 9월 2일 낮 12시에 확정된다.",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176"
 }
