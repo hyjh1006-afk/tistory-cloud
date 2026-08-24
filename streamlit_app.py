@@ -380,12 +380,30 @@ with tab_dash:
     else:
         st.caption(f"조회 실패: {cp}")
 
-    st.markdown("**💰 애드센스 수익**")
+    st.markdown("**💰 애드센스 수익** (계정 통화 USD)")
     if s_ad == "ok":
         c1, c2, c3 = st.columns(3)
-        c1.metric("오늘", f"{adr['today']:,.0f}원")
-        c2.metric("최근 7일", f"{adr['last_7d']:,.0f}원")
-        c3.metric("이번 달", f"{adr['month']:,.0f}원")
+        c1.metric("오늘", f"${adr['today']:,.2f}")
+        c2.metric("최근 7일", f"${adr['last_7d']:,.2f}")
+        c3.metric("이번 달", f"${adr['month']:,.2f}")
+        sites = adr.get("sites") or []
+        if sites:
+            st.dataframe(
+                [
+                    {
+                        "사이트": x["domain"],
+                        "이번 달": f"${x['earnings']:,.2f}",
+                        "페이지뷰": f"{x['views']:,}",
+                    }
+                    for x in sites
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+        if adr.get("unpaid"):
+            st.caption(
+                f"아직 못 받은 돈 **{adr['unpaid']}** — 지급 기준 $100 을 넘으면 통장으로 들어와요."
+            )
     else:
         st.caption(f"미연결: {adr}")
 

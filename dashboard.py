@@ -39,6 +39,8 @@ SPACE_REPO = "hyjh1006-afk/space-shorts"  # 우주 쇼츠 (채널 "우주를 여
 # 시간표를 여기서 바꾸지 않는다(사용자 지시 2026-08-23): 화면에는 보여주기만 한다.
 SPACE_SLOTS = ["18:00"]
 
+_OFFICE_API = "https://ai-office-2c0.pages.dev/api/status"   # ODDO 사옥 (공개, 토큰 불필요)
+
 # 로컬 테스트용 파일 위치 (클라우드에는 없음 — secrets 사용)
 _LOCAL_BLOGGER_TOKEN = ROOT.parent / "Blogger_auto" / "token.json"
 _LOCAL_COUPANG_KEYS = ROOT.parent / "Blogger_auto" / "coupang_keys.txt"
@@ -187,21 +189,16 @@ def space_shorts_stats() -> dict:
     if local_path.exists():
         return json.loads(local_path.read_text(encoding="utf-8"))
 
-    try:
-        headers = _gh_headers()
-    except RuntimeError:
-        headers = {
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-    response = requests.get(
-        f"{_GH_API}/repos/{SPACE_REPO}/contents/channel-stats.json",
-        headers=headers,
-        timeout=20,
-    )
+    # 배포 환경에서는 ODDO 사옥 API 를 거쳐 받는다.
+    # GitHub 에서 직접 읽으려 했더니 이 앱의 토큰에 space-shorts 권한이 없어 404 였다
+    # (2026-08-24 실측). 사옥은 같은 파일을 읽어 공개 API 로 내주므로 토큰이 필요 없다.
+    response = requests.get(f"{_OFFICE_API}?t=space", timeout=20)
     response.raise_for_status()
-    payload = response.json()
-    return json.loads(base64.b64decode(payload["content"]).decode("utf-8"))
+    space = (response.json().get("programs") or {}).get("space") or {}
+    stats = space.get("stats")
+    if not stats:
+        raise RuntimeError("사옥이 우주쇼츠 통계를 아직 안 내려줍니다")
+    return stats
 
 
 # ── 유튜브 채널 통계 ────────────────────────────────────────
@@ -335,6 +332,8 @@ def adsense_stats() -> dict:
         raise RuntimeError("애드센스 계정을 찾지 못했습니다")
     account = items[0]["name"]  # accounts/pub-xxxx
 
+    # 애드센스 계정 통화는 USD 다. 예전엔 달러로 받은 값을 화면에서 "원"으로 찍어
+    # $0.25 가 0원으로 보였다 — 이제 달러로 받고 달러로 표시한다(2026-08-24 수정).
     def _earnings(date_range: str) -> float:
         report = requests.get(
             f"https://adsense.googleapis.com/v2/{account}/reports:generate",
@@ -343,6 +342,7 @@ def adsense_stats() -> dict:
                 "dateRange": date_range,
                 "metrics": "ESTIMATED_EARNINGS",
                 "reportingTimeZone": "ACCOUNT_TIME_ZONE",
+                "currencyCode": "USD",
             },
             timeout=30,
         )
@@ -350,10 +350,48 @@ def adsense_stats() -> dict:
         totals = report.json().get("totals", {}).get("cells", [])
         return float(totals[0].get("value") or 0) if totals else 0.0
 
+    # 어느 사이트에서 나오는지 — 우리 수익은 사실상 괴담 티스토리에서 나온다
+    sites = []
+    try:
+        by_site = requests.get(
+            f"https://adsense.googleapis.com/v2/{account}/reports:generate",
+            headers=headers,
+            params={
+                "dateRange": "MONTH_TO_DATE",
+                "metrics": ["ESTIMATED_EARNINGS", "PAGE_VIEWS"],
+                "dimensions": "DOMAIN_NAME",
+                "reportingTimeZone": "ACCOUNT_TIME_ZONE",
+                "currencyCode": "USD",
+            },
+            timeout=30,
+        )
+        by_site.raise_for_status()
+        for row in by_site.json().get("rows") or []:
+            cells = [c.get("value", "") for c in row["cells"]]
+            sites.append({"domain": cells[0], "earnings": float(cells[1] or 0),
+                          "views": int(cells[2] or 0)})
+        sites.sort(key=lambda x: -x["earnings"])
+    except requests.RequestException:
+        pass
+
+    # 아직 못 받은 돈 (지급 기준 $100 을 넘어야 통장으로 들어온다)
+    unpaid = ""
+    try:
+        pay = requests.get(f"https://adsense.googleapis.com/v2/{account}/payments",
+                           headers=headers, timeout=30)
+        pay.raise_for_status()
+        for p in pay.json().get("payments") or []:
+            if str(p.get("name", "")).endswith("/unpaid"):
+                unpaid = p.get("amount", "")
+    except requests.RequestException:
+        pass
+
     return {
         "today": _earnings("TODAY"),
         "last_7d": _earnings("LAST_7_DAYS"),
         "month": _earnings("MONTH_TO_DATE"),
+        "sites": sites,
+        "unpaid": unpaid,
         "account": account.replace("accounts/", ""),
     }
 
