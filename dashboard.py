@@ -35,9 +35,9 @@ KITCHEN_WORKFLOW = "daily-recipe-publisher.yml"
 HQ_REPO = "hyjh1006-afk/tistory-cloud"  # 이 대시보드 자신의 저장소 (상태 파일을 여기서 읽는다)
 SPACE_REPO = "hyjh1006-afk/space-shorts"  # 우주 쇼츠 (채널 "우주를 여행하는 히키코모리")
 
-# 우주 쇼츠 발행 슬롯 — 레퍼런스 채널 시간표를 따라 잡은 고정값이다.
+# 우주 쇼츠 발행 슬롯 — 2026-08-25 하루 2편 전자동 체제로 개편(낮 작업 → 12:00, 저녁 작업 → 18:00).
 # 시간표를 여기서 바꾸지 않는다(사용자 지시 2026-08-23): 화면에는 보여주기만 한다.
-SPACE_SLOTS = ["18:00"]
+SPACE_SLOTS = ["12:00", "18:00"]
 
 _OFFICE_API = "https://ai-office-2c0.pages.dev/api/status"   # ODDO 사옥 (공개, 토큰 불필요)
 
