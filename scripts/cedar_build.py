@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -31,18 +32,35 @@ LOCAL_OUTPUTS = ROOT / "state" / "local_outputs"
 NOTE = "원작자에게 허락받은 번역본입니다."
 
 
-def render(title: str, source_url: str, paragraphs: list[str]) -> str:
-    body = "<br><br>".join(html.escape(p).replace("\n", "<br>") for p in paragraphs)
+LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
+
+
+def _para(text: str) -> str:
+    """문단 하나를 HTML 로. [단어](주소) 는 링크로 바꾼다 (쿠팡 제휴 링크용)."""
+    out, last = [], 0
+    for m in LINK_RE.finditer(text):
+        out.append(html.escape(text[last:m.start()]))
+        out.append(
+            f'<a href="{html.escape(m.group(2), quote=True)}" target="_blank">'
+            f"<span>{html.escape(m.group(1))}</span></a>"
+        )
+        last = m.end()
+    out.append(html.escape(text[last:]))
+    return "".join(out).replace("\n", "<br>")
+
+
+def render(title: str, source_url: str, paragraphs: list[str], note: str | None = NOTE) -> str:
+    body = "<br><br>".join(_para(p) for p in paragraphs)
     url = html.escape(source_url, quote=True)
     return (
         '<p data-ke-size="size16">&nbsp;</p>'
         f'<h2 data-ke-size="size26">{html.escape(title)}</h2>'
         '<p data-ke-size="size16">'
         f'<a href="{url}" target="_blank" rel="noopener noreferrer">'
-        "<span><i>원출처</i></span></a><br><br>"
-        f"{NOTE}<br><br><br><br>"
-        f"{body}"
-        "</p>"
+        "<span><u><i>원출처</i></u></span></a><br><br>"
+        + (f"{note}<br><br><br><br>" if note else "<br><br>")
+        + f"{body}"
+        + "</p>"
     )
 
 
@@ -50,13 +68,19 @@ def main() -> int:
     src = Path(sys.argv[1])
     lines = src.read_text(encoding="utf-8").split("\n")
     title, source_url = lines[0].strip(), lines[1].strip()
-    rest = "\n".join(lines[2:]).strip()
+    note: str | None = NOTE
+    rest_lines = lines[2:]
+    if rest_lines and rest_lines[0].strip().startswith("#note:"):
+        marker = rest_lines[0].split(":", 1)[1].strip()
+        note = None if marker in ("none", "없음") else marker
+        rest_lines = rest_lines[1:]
+    rest = "\n".join(rest_lines).strip()
     paragraphs = [p.strip() for p in rest.split("\n\n") if p.strip()]
     if not title or not source_url or not paragraphs:
         print("제목·원문링크·본문이 다 있어야 합니다.", file=sys.stderr)
         return 2
 
-    html_content = render(title, source_url, paragraphs)
+    html_content = render(title, source_url, paragraphs, note)
     record = {
         "title": title,
         "blog_range": src.stem,
