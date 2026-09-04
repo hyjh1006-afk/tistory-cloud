@@ -24,6 +24,8 @@ print(f"{y:04d}-{m:02d}-{d:02d}")
 PY
 )"
 
+WANT_YM="${WANT_DATE%-*}"
+
 echo "▶ $EP : $TITLE"
 echo "  예약 → ${WANT_DATE} ${HOUR}:${MIN}"
 
@@ -95,7 +97,18 @@ let db=[...document.querySelectorAll("button")].find(b=>/^\d{4}-\d{2}-\d{2}$/.te
 const vis=e=>e&&e.offsetHeight>0;
 let cal=document.querySelector(".box_calendar");
 if(!vis(cal)){ db.click(); await new Promise(r=>setTimeout(r,1000)); cal=document.querySelector(".box_calendar"); }
-const day=[...cal.querySelectorAll("button.btn_day")].find(b=>b.textContent.trim()==="'"$DAY"'");
+// 다음 달 이후를 예약하려면 달력을 넘겨야 한다 (안 넘기면 이번 달 같은 날짜가 찍힌다)
+const want="'"$WANT_YM"'";
+for(let i=0;i<14;i++){
+  const h=cal.querySelector(".txt_calendar").textContent.replace(/[^0-9]+/g,"-").replace(/^-|-$/g,"");
+  const [y,m]=h.split("-");
+  if(y+"-"+String(m).padStart(2,"0")===want) break;
+  const nx=cal.querySelector(".btn_next");
+  if(!nx||nx.disabled) return {오류:"달력 이동 실패"};
+  nx.click(); await new Promise(r=>setTimeout(r,500));
+  cal=document.querySelector(".box_calendar");
+}
+const day=[...cal.querySelectorAll("button.btn_day")].filter(b=>!b.disabled).find(b=>b.textContent.trim()==="'"$DAY"'");
 if(!day) return {오류:"날짜 버튼 없음"};
 day.click();
 await new Promise(r=>setTimeout(r,900));
