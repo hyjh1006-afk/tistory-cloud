@@ -15,16 +15,23 @@ MIN="${4:-00}"
 RAW="https://raw.githubusercontent.com/hyjh1006-afk/tistory-cloud/main/state/outputs/cedar_${EP}.json"
 TITLE="$("$ROOT/.venv/bin/python" -c "import json,sys;print(json.load(open(sys.argv[1],encoding='utf-8'))['title'])" "$ROOT/state/local_outputs/cedar_${EP}.json")"
 
-# 기대 예약일(YYYY-MM-DD). DAY 가 오늘보다 작으면 다음 달로 본다.
+# 기대 예약일. 날짜는 YYYY-MM-DD 로 넘기는 걸 권장한다.
+# 숫자만 넘기면 "다음에 오는 그 날"로 해석한다 — 오늘과 같은 날짜를 넘기면
+# 이번 달 오늘이 되어 몇 시간 뒤 공개돼버린다(2026-09-04에 당함). 헷갈리면 전체 날짜를 써라.
 WANT_DATE="$(/usr/bin/python3 - "$DAY" <<'PY'
-import sys, datetime
-d = int(sys.argv[1]); t = datetime.date.today()
-y, m = (t.year, t.month) if d >= t.day else (t.year + (t.month == 12), t.month % 12 + 1)
-print(f"{y:04d}-{m:02d}-{d:02d}")
+import sys, datetime, re
+a = sys.argv[1]
+if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a):
+    print(a)
+else:
+    d = int(a); t = datetime.date.today()
+    y, m = (t.year, t.month) if d > t.day else (t.year + (t.month == 12), t.month % 12 + 1)
+    print(f"{y:04d}-{m:02d}-{d:02d}")
 PY
 )"
 
 WANT_YM="${WANT_DATE%-*}"
+DAY="$(echo "${WANT_DATE##*-}" | sed 's/^0//')"
 
 echo "▶ $EP : $TITLE"
 echo "  예약 → ${WANT_DATE} ${HOUR}:${MIN}"
