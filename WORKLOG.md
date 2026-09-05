@@ -91,3 +91,10 @@
   실제로 만들어진 8-4 도 "없음"으로 읽었다. 읽어서 판단하기 전엔 `closeend` 로 정리하고 새로 열 것.
   `cedar_post.sh` 검증부에 반영했다.
 - [연재] Part 8 번역 4편 완료. **8-4만 예약됨(10/15)**, 8-1~8-3 은 빌드까지 끝났고 발행만 남음.
+- [해결·중요] **삽화를 본문에 넣는 방법을 찾았다** (여행 블로그 세션에서 배움).
+  `#attach-layer-btn` → `#attach-image` 경로는 파일만 물리고 업로드가 안 걸린다.
+  **툴바 "첨부" 버튼 → 드롭다운 "사진" 항목**을 클릭해서 생기는 input 이라야 업로드→본문 삽입까지 된다.
+  선택자는 `input[type=file][accept^="image"]`(편집 페이지는 accept 가 목록형이라 ^= 필요).
+  완료 확인은 `figure[data-ke-type=image] img[src*=kakaocdn]` 개수 폴링. 상세는 ~/.claude/rules/aside-browser.md.
+  → 159 에 실제로 삽입 성공. `H2 → FIGURE(img) → P` 로 배치까지 확인. **저장만 CAPTCHA 에 막힘.**
+- [함정] **기존 글 수정에도 CAPTCHA 가 뜬다.** 새 글 작성만 막히는 게 아니다.
