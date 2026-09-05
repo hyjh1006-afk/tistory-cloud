@@ -67,3 +67,18 @@
 ## 2026-09-05
 - [HQ 재설계] 파이프라인 HQ를 읽기 전용 지표 대시보드로 축소 — 발행 버튼·시간표 편집·괴담 생성 탭 전부 제거(사용자 지시). 플랫폼별 자동발행시간(read-only)·조회수·수익·방문자만 표시. 데이터 함수(dashboard.py)는 그대로 재사용. 자동발행은 각 저장소 GitHub Actions/예약작업이 담당.
 - [함정] 인스타·틱톡·네이버클립은 공개 조회수 API가 없어 스냅샷(space-shorts channel-stats.json platforms). 유튜브만 실측.
+
+## 2026-09-05
+- [함정·해결] **Aside 는 WebKit 계열이라 네이티브 confirm 을 CDP 로 못 닫는다.**
+  새 글쓰기를 열 때 뜨는 "…에 저장된 글이 있습니다. 이어서 작성하시겠습니까?" 가 렌더러를 막아
+  그 탭의 `eval`·`shot` 이 전부 타임아웃난다. `dismiss` 는 Aside 에선 **항상 False** 라 판별에 못 쓴다.
+  → `~/.claude/tools/screen/aside_confirm.sh cancel` (화면 잠금 + screencapture 좌표 + click.py) 로 물리 클릭.
+  `cedar_post.sh` 가 편집기 무응답이면 자동으로 이걸 부르고 재시도한다.
+- [함정·중요] **발행 확인을 `?searchKeyword=` 로 하면 안 된다.** 방금 만든 글이 검색에 안 잡혀
+  "발행 실패"로 오판했다. 실제로는 멀쩡히 만들어져 있었다. **`/manage/posts/` 목록 첫 페이지를 직접 볼 것.**
+  (어제 "한도 때문에 발행이 안 된다"고 본 것도 이 오판이 섞여 있었을 수 있다)
+- [함정] 렌더러가 막히면 `aside.sh goto <탭> about:blank` 로 빠져나온다(브라우저 프로세스가 처리해서 통함).
+- [함정] zsh 는 unquoted 변수를 word-split 하지 않는다 — `for a in "x 1" "y 2"; do set -- $a` 가 안 먹는다.
+  (이미 적어뒀는데 또 밟았다. 반복문 대신 명시적으로 한 줄씩 쓸 것)
+- [문서] Aside 조작 매뉴얼을 `~/.claude/rules/aside-browser.md` 에 만들고 전역 CLAUDE.md 에 import.
+  **모든 세션이 자동으로 읽는다.** 새로 알아낸 함정은 거기에 계속 추가할 것.
