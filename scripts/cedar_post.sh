@@ -157,6 +157,23 @@ case "$when" in
 esac
 
 # 4) 발행
-"$A" eval "$TAB" '(async()=>{const b=[...document.querySelectorAll("button")].find(x=>/발행|저장/.test(x.textContent)&&!/임시/.test(x.textContent));b.click();await new Promise(r=>setTimeout(r,5000));return 1;})()' >/dev/null 2>&1 || true
-sleep 3
-echo "  ✓ 발행 요청 완료"
+"$A" eval "$TAB" '(async()=>{const b=[...document.querySelectorAll("button")].find(x=>/발행|저장/.test(x.textContent)&&!/임시/.test(x.textContent));b.click();await new Promise(r=>setTimeout(r,4000));return 1;})()' >/dev/null 2>&1 || true
+sleep 4
+
+# 5) 검증 — 발행 버튼을 눌러도 글이 안 만들어지는 경우가 있다(하루 한도 등). 반드시 확인한다.
+# ⚠️ ?searchKeyword= 검색은 방금 만든 글을 못 찾아 오판하게 만든다. 목록 첫 페이지를 직접 읽을 것.
+LIST="https://tester188.tistory.com/manage/posts/"
+# ⚠️ 목록 탭이 여러 개 쌓이면 find() 가 오래된 좀비 탭을 잡아 검증이 **항상 false** 가 된다
+#    (2026-09-05 실측: 실제로 만들어진 글도 "없음"으로 나옴). 검증 전에 싹 닫고 새로 연다.
+for _ in 1 2 3 4 5 6; do "$A" closeend "tistory.com/manage/posts/" >/dev/null 2>&1 || true; done
+"$A" open "$LIST" >/dev/null 2>&1 || true
+sleep 7
+TITLE_JS=$(/usr/bin/python3 -c "import json,sys;print(json.dumps(sys.argv[1]))" "$TITLE")
+found=$("$A" eval '~.*manage/posts/$' \
+  "(()=>[...document.querySelectorAll('.list_post li')].some(e=>e.innerText.includes(${TITLE_JS})))()" \
+  2>/dev/null || echo unknown)
+if [ "$found" = "true" ]; then
+  echo "  ✓ 발행 확인됨 — $WANT_DATE $HOUR:$MIN"
+else
+  echo "  ✗ 발행됐다는 증거가 없습니다 (목록에 제목 없음: $found)"; exit 1
+fi
