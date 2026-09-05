@@ -62,7 +62,17 @@ trap 'rm -rf "$LOCK"' EXIT
 sleep 1
 "$A" open "https://tester188.tistory.com/manage/newpost/" >/dev/null
 sleep 10
-ready=$("$A" eval "$TAB" '(()=>(!!document.querySelector("#post-title-inp") && typeof window.tinymce==="object"))()')
+READY_JS='(()=>(!!document.querySelector("#post-title-inp") && typeof window.tinymce==="object"))()'
+ready=$("$A" eval "$TAB" "$READY_JS" 2>/dev/null || echo timeout)
+if [ "$ready" != "true" ]; then
+  # Aside 는 WebKit 계열이라 네이티브 confirm 을 CDP 로 못 닫는다.
+  # "…에 저장된 글이 있습니다. 이어서 작성하시겠습니까?" 가 뜨면 렌더러가 멈춰 eval 이 타임아웃난다.
+  # → 물리 클릭으로 [취소] (이어서 작성하면 남의 초안이 딸려 들어온다)
+  echo "  · 편집기 무응답 — 저장된 글 확인창으로 보고 [취소] 클릭"
+  "$HOME/.claude/tools/screen/aside_confirm.sh" cancel || true
+  sleep 2
+  ready=$("$A" eval "$TAB" "$READY_JS" 2>/dev/null || echo timeout)
+fi
 [ "$ready" = "true" ] || { echo "  ✗ 편집기가 안 떴습니다 ($ready)"; exit 1; }
 
 # 1) 카테고리(이름으로) + 본문 붙여넣기 + 제목칸 포커스
