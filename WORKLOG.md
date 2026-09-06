@@ -106,3 +106,19 @@
   당일 생성분 저장 전체에 걸리는 것으로 보인다. → 삽화는 글을 올린 **다음 날** 넣을 것.
 - [상태] 예약 38편(9/5~10/15). **빈칸 10/12~10/14** = 8-1~8-3 자리. 내일 채울 것.
   발행 대기: 8-1~8-3, 9-1~9-4, 10-1~10-4 (전부 빌드 완료). 글번호 매핑은 state/postmap.txt.
+
+## 2026-09-06
+- [.git 진단] 기획조정실이 ".git 96MB인데 추적 미디어 6개뿐 → 과거 대용량 blob 의심"으로 조사 요청.
+  진단 결과 **의심은 오탐**이었다. 96MB는 전부 정상 콘텐츠다.
+- [원인] `assets/illustrations/` 에 **현재 추적 중인 삽화 PNG 49장(94MB)** 이 HEAD에 그대로 들어 있다.
+  최근 두 커밋(de5eb48 삽화33장, 61272c6 삽화16장)에 추가됨. PNG는 이미 압축본이라 pack 해도 안 줄어든다.
+- [함정·핵심] "추적 미디어 6개뿐"은 **측정 착시**다. git이 대괄호·공백·한글이 든 파일명(`[Reddit] … .png`)을
+  `core.quotepath` 로 **큰따옴표로 감싸 출력**한다 → `git ls-files | grep '\.png$'` 는 줄 끝이 `png"` 라 다 놓친다.
+  실제 추적 미디어는 55개(blog_assets 6 + illustrations 49). 확인은 `git ls-files assets/illustrations/ | wc -l`.
+- [gc] `git fsck --unreachable` 에 unreachable commit/tree는 있으나 **unreachable blob은 0개(0MB)**.
+  즉 `git gc --prune=now` 로 회수되는 대용량 없음(메타데이터 KB 수준뿐). amend/rebase 잔재는 무해.
+- [결정 보류] 히스토리 재작성(filter-repo)으로 줄이려면 삽화를 지워야 하는데, 삽화는 **현재 사용 중 소스**다
+  (scripts/illust_gen.sh·illust_insert.sh·cedar_post.sh 가 참조). "더 이상 필요 없는 것" 전제 미충족 → **재작성 안 함.**
+  streamlit_app.py(파이프라인 HQ)는 삽화를 참조하지 않으므로 배포엔 무관하나, 그것이 삭제 근거는 아니다.
+- [권고] 96MB는 정상 범위(streamlit·GitHub 한도 여유). 굳이 줄이려면 삽화를 외부 저장소로 옮기고
+  `.gitignore` + 히스토리 제거하는 정책 결정이 필요 → 사용자 판단 사항. 승인 없이는 손대지 않는다.
