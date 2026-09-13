@@ -102,6 +102,35 @@ case "$step1" in *"$CAT"*) ;; *) echo "  ✗ 카테고리 실패"; exit 1;; esac
 title_now=$("$A" eval "$TAB" '(()=>document.querySelector("#post-title-inp").value)()')
 [ "$title_now" != '""' ] || { echo "  ✗ 제목 입력 실패"; exit 1; }
 
+# 2.5) 삽화를 **발행 전에** 본문에 넣는다.
+# ⚠️ 올린 뒤에 수정으로 넣으면 당일엔 발행본에 반영이 안 된다(2026-09-05·06 실측).
+#    그래서 처음부터 같이 올린다. 삽화 파일이 없으면 조용히 건너뛴다.
+IMG_NAME="$(printf '%s' "$TITLE" | sed 's#/#-#g; s#[?:*"<>|]##g')"
+IMG_PATH="$ROOT/assets/illustrations/${IMG_NAME}.png"
+if [ -f "$IMG_PATH" ]; then
+  # 툴바 "첨부" → 드롭다운 "사진" 으로 만든 input 이라야 업로드 핸들러가 걸린다
+  "$A" eval "$TAB" '(()=>{const b=[...document.querySelectorAll(".mce-btn")].find(e=>e.getAttribute("aria-label")==="첨부"&&e.offsetParent!==null);(b.querySelector("button")||b).click();return 1})()' >/dev/null 2>&1
+  sleep 2
+  "$A" eval "$TAB" '(()=>{const it=[...document.querySelectorAll(".mce-menu-item")].find(e=>(e.innerText||"").trim()==="사진"&&e.offsetParent!==null);if(it)it.click();return 1})()' >/dev/null 2>&1
+  sleep 3
+  "$A" file "$TAB" 'input[type=file][accept^="image"]' "$IMG_PATH" >/dev/null 2>&1
+  up=0
+  for _ in $(seq 1 12); do
+    sleep 4
+    n=$("$A" eval "$TAB" 'String(tinymce.activeEditor.getBody().querySelectorAll("figure[data-ke-type=image] img[src*=kakaocdn]").length)' 2>/dev/null | tr -d '"')
+    [ "${n:-0}" != "0" ] && { up=1; break; }
+  done
+  if [ "$up" = "1" ]; then
+    pos=$("$A" eval "$TAB" '(()=>{const ed=tinymce.activeEditor,b=ed.getBody();const f=b.querySelector("figure[data-ke-type=image]");const h=b.querySelector("h2");if(!f||!h)return "요소없음";h.insertAdjacentElement("afterend",f);ed.setDirty(true);ed.fire("change");return [...b.children].slice(0,3).map(e=>e.tagName).join(">")})()' 2>/dev/null | tr -d '"')
+    echo "  2.5) 삽화 삽입 · $pos"
+    case "$pos" in H2\>FIGURE*) ;; *) echo "  ⚠ 배치가 H2>FIGURE 가 아님 ($pos)";; esac
+  else
+    echo "  ⚠ 삽화 업로드 실패 — 글만 올린다"
+  fi
+else
+  echo "  · 삽화 파일 없음 — 건너뜀 (${IMG_NAME:0:30}.png)"
+fi
+
 # 3) 완료 → 예약 → 날짜·시각
 step3=$("$A" eval "$TAB" '(async()=>{
 [...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="완료").click();
@@ -159,6 +188,22 @@ esac
 # 4) 발행
 "$A" eval "$TAB" '(async()=>{const b=[...document.querySelectorAll("button")].find(x=>/발행|저장/.test(x.textContent)&&!/임시/.test(x.textContent));b.click();await new Promise(r=>setTimeout(r,4000));return 1;})()' >/dev/null 2>&1 || true
 sleep 4
+
+# 4.5) CAPTCHA 대기 — 연속 발행이면 DKAPTCHA 가 뜨고 "저장중" 에서 멈춘다.
+# ⚠️ 캡챠는 자동으로 풀지 않는다(봇 감지 우회는 하지 않는 일). 사람이 풀 때까지 기다린다.
+#    탐지는 **최상위 문서의 「저장중」 버튼**으로 한다 — 캡챠 iframe 은 교차 출처라 안을 못 들여다본다.
+said=0
+for i in $(seq 1 180); do
+  sleep 5
+  alive=$("$A" tabs 2>/dev/null | grep -c "/manage/newpost/" || echo 0)
+  [ "${alive:-0}" = "0" ] && break          # 편집기가 닫혔다 = 저장 완료
+  busy=$("$A" eval "$TAB" '(()=>[...document.querySelectorAll("button")].some(b=>(b.innerText||"").trim()==="저장중")?"y":"n")()' 2>/dev/null | tr -d '"')
+  if [ "$busy" = "y" ]; then
+    [ "$said" = "0" ] && { echo "  ⏸ CAPTCHA — 사람이 풀 때까지 대기 (최대 15분)"; said=1; }
+    continue
+  fi
+  [ "$said" = "1" ] && { echo "  ▶ CAPTCHA 해결됨"; sleep 6; break; }
+done
 
 # 5) 검증 — 발행 버튼을 눌러도 글이 안 만들어지는 경우가 있다(하루 한도 등). 반드시 확인한다.
 # ⚠️ ?searchKeyword= 검색은 방금 만든 글을 못 찾아 오판하게 만든다. 목록 첫 페이지를 직접 읽을 것.
