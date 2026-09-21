@@ -1,65 +1,199 @@
 {
-  "updated_at": "2026-09-14 19:40",
+  "updated_at": "2026-09-21 19:40",
   "note": "앱인토스 콘솔은 공개 API가 없어 점검 작업이 콘솔을 읽어 이 파일을 갱신한다(2026-08-30부터 주 1회 월요일). 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다. total_users는 누적이 아니라 콘솔 홈 대시보드의 최근 30일 롤링 창 수치다(날짜 범위가 매일 하루씩 밀린다).",
-  "released": 17,
-  "total_apps": 17,
-  "total_users": 511,
-  "users_delta": 197,
+  "released": 18,
+  "total_apps": 18,
+  "total_users": 597,
+  "users_delta": 86,
   "open_inquiries": 0,
-  "impressions": 119,
-  "estimated_revenue_krw": 803,
+  "impressions": 210,
+  "estimated_revenue_krw": 1446,
   "settled_revenue_krw": 0,
   "commission_rate": "0% (면제 프로모션, 정가 15%)",
   "apps": [
-    {"name": "월요일 파쇄소", "type": "보상형", "users": 154, "users_delta": 76, "impressions": 94, "cpm_krw": 7713, "revenue_krw": 725},
-    {"name": "제4생활관", "type": "전면형·보상형", "users": 108, "users_delta": 108, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "ADHD야 나가자", "type": "전면형", "users": 38, "users_delta": -30, "impressions": 2, "cpm_krw": 2000, "revenue_krw": 4},
-    {"name": "빙고빙수", "type": "보상형", "users": 36, "users_delta": -14, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "여보세요", "type": "전면형", "users": 29, "users_delta": 3, "impressions": 6, "cpm_krw": 4000, "revenue_krw": 24},
-    {"name": "오늘 버려도 돼?", "type": "전면형·배너", "users": 26, "users_delta": 5, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "세탁기 넣어도 돼?", "type": "전면형·배너", "users": 20, "users_delta": 4, "impressions": 1, "cpm_krw": 5000, "revenue_krw": 5},
-    {"name": "여름 옆자리", "type": "전면형", "users": 17, "users_delta": -1, "impressions": 6, "cpm_krw": 1500, "revenue_krw": 9},
-    {"name": "안 마셔도 돼", "type": "보상형·배너", "users": 15, "users_delta": 5, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "달의 뒷면", "type": "전면형·배너", "users": 13, "users_delta": 6, "impressions": 2, "cpm_krw": 1500, "revenue_krw": 3},
-    {"name": "한 단어만 써도 돼", "type": "전면형", "users": 10, "users_delta": 5, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "오늘 얼마 벌었어?", "type": "전면형", "users": 9, "users_delta": 3, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "빈 페이지", "type": "전면형", "users": 8, "users_delta": 2, "impressions": 0, "cpm_krw": 0, "revenue_krw": 0},
-    {"name": "길가 식물 수집", "type": "보상형", "users": 8, "users_delta": 8, "impressions": 1, "cpm_krw": 12000, "revenue_krw": 12},
-    {"name": "탐조 수첩", "type": "보상형", "users": 7, "users_delta": 7, "impressions": 1, "cpm_krw": 5000, "revenue_krw": 5},
-    {"name": "인생시계", "type": "전면형", "users": 7, "users_delta": 7, "impressions": 1, "cpm_krw": 4000, "revenue_krw": 4},
-    {"name": "안 피워도 돼", "type": "보상형·배너", "users": 6, "users_delta": 3, "impressions": 5, "cpm_krw": 2400, "revenue_krw": 12}
+    {
+      "name": "월요일 파쇄소",
+      "type": "보상형",
+      "users": 157,
+      "users_delta": 3,
+      "impressions": 107,
+      "cpm_krw": 9489,
+      "revenue_krw": 1015
+    },
+    {
+      "name": "제4생활관",
+      "type": "전면형·보상형",
+      "users": 141,
+      "users_delta": 33,
+      "impressions": 10,
+      "cpm_krw": 3700,
+      "revenue_krw": 37
+    },
+    {
+      "name": "빙고빙수",
+      "type": "보상형",
+      "users": 32,
+      "users_delta": -4,
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "ADHD야 나가자",
+      "type": "전면형",
+      "users": 32,
+      "users_delta": -6,
+      "impressions": 2,
+      "cpm_krw": 2000,
+      "revenue_krw": 4
+    },
+    {
+      "name": "여보세요",
+      "type": "전면형",
+      "users": 30,
+      "users_delta": 1,
+      "impressions": 7,
+      "cpm_krw": 3571,
+      "revenue_krw": 25
+    },
+    {
+      "name": "안 마셔도 돼",
+      "type": "보상형·배너",
+      "users": 22,
+      "users_delta": 7,
+      "impressions": 16,
+      "cpm_krw": 750,
+      "revenue_krw": 12
+    },
+    {
+      "name": "세탁기 넣어도 돼?",
+      "type": "전면형·배너",
+      "users": 22,
+      "users_delta": 2,
+      "impressions": 5,
+      "cpm_krw": 1400,
+      "revenue_krw": 7
+    },
+    {
+      "name": "달의 뒷면",
+      "type": "전면형·배너",
+      "users": 21,
+      "users_delta": 8,
+      "impressions": 13,
+      "cpm_krw": 16231,
+      "revenue_krw": 211
+    },
+    {
+      "name": "오늘 버려도 돼?",
+      "type": "전면형·배너",
+      "users": 20,
+      "users_delta": -6,
+      "impressions": 1,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "여름 옆자리",
+      "type": "전면형",
+      "users": 18,
+      "users_delta": 1,
+      "impressions": 6,
+      "cpm_krw": 1500,
+      "revenue_krw": 9
+    },
+    {
+      "name": "길가 식물 수집",
+      "type": "보상형",
+      "users": 15,
+      "users_delta": 7,
+      "impressions": 2,
+      "cpm_krw": 8000,
+      "revenue_krw": 16
+    },
+    {
+      "name": "맛있는 키보드",
+      "type": "보상형",
+      "users": 15,
+      "users_delta": 15,
+      "impressions": 6,
+      "cpm_krw": 5167,
+      "revenue_krw": 31
+    },
+    {
+      "name": "탐조 수첩",
+      "type": "보상형",
+      "users": 14,
+      "users_delta": 7,
+      "impressions": 3,
+      "cpm_krw": 5667,
+      "revenue_krw": 17
+    },
+    {
+      "name": "빈 페이지",
+      "type": "전면형",
+      "users": 13,
+      "users_delta": 5,
+      "impressions": 5,
+      "cpm_krw": 7200,
+      "revenue_krw": 36
+    },
+    {
+      "name": "한 단어만 써도 돼",
+      "type": "전면형",
+      "users": 13,
+      "users_delta": 3,
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "오늘 얼마 벌었어?",
+      "type": "전면형",
+      "users": 12,
+      "users_delta": 3,
+      "impressions": 2,
+      "cpm_krw": 2000,
+      "revenue_krw": 4
+    },
+    {
+      "name": "인생시계",
+      "type": "전면형",
+      "users": 11,
+      "users_delta": 4,
+      "impressions": 3,
+      "cpm_krw": 1667,
+      "revenue_krw": 5
+    },
+    {
+      "name": "안 피워도 돼",
+      "type": "보상형·배너",
+      "users": 9,
+      "users_delta": 3,
+      "impressions": 22,
+      "cpm_krw": 773,
+      "revenue_krw": 17
+    }
   ],
   "pending_review": [
-    "ADHD야 나가자 20260914-24",
-    "오늘 버려도 돼? 20260914-19",
-    "세탁기 넣어도 돼? 20260914-13",
-    "여보세요 20260914-30",
-    "빈 페이지 20260914-9",
-    "안 마셔도 돼 20260914-11",
-    "달의 뒷면 20260914-14",
-    "한 단어만 써도 돼 20260914-7",
-    "오늘 얼마 벌었어? 20260914-9",
-    "안 피워도 돼 20260914-10",
-    "탐조 수첩 20260914-12",
-    "인생시계 20260914-6"
+    "맛있는 키보드 20260921-13"
   ],
-  "pending_review_note": "9/14 저녁 점검. 17개 전부 출시됐다(제4생활관·길가 식물 9/8, 탐조 수첩 9/9). 오늘이 전수 점검 대비 수정본 검수 요청이 열린 날이라 17:55~18:25 사이 12개 앱이 「심사 체크리스트 감사」 판을 일제히 검토 요청했다 — 공통 내용은 광고 전 예고 문구, 화면 확대 막기, 리뷰 요청 시점 정리, 토스 공유 링크. 오전에 올린 판 중 여름 옆자리 20260914-11 과 인생시계 20260914-5 가 같은 사유로 반려됐다(원문: 「1. 유저가 예상하기 어려운 시점에 광고가 노출돼요. 광고 노출 전에 유저가 인지할 수 있도록 CTA 문구나 UI를 추가해 주세요.」). 인생시계는 대응판 -6 이 검토 중이고, 여름 옆자리는 대응판 -13 이 아직 검토 요청 전이다. 검토 요청 전인 최신 판은 빙고빙수 -21 · 여름 옆자리 -13 · 월요일 파쇄소 -13 · 길가 -16 · 제4생활관 -12. 탐조 수첩 20260914-11 은 승인됐지만 뒤에 -12(-11 대체)가 검토 중이라 출시하지 않았다. 이번 점검에서 누른 출시 버튼은 없다 — 오늘 나간 빙고빙수 -19 · 월요일 파쇄소 -12 · 길가 -15 · 한 단어 -6 은 이미 눌려 있었다. 월요일 파쇄소 앱 정보 수정 검토가 9/7 19:02 접수 후 7일째 그대로라 임원에 올렸다. 광고는 누적 51노출 206원 → 119노출 803원이고 월요일 파쇄소 한 곳이 94노출 725원(90%)이다. 빙고빙수는 광고 로드는 17/20 성공하는데 제안(ad_offer_shown)이 0회라 누적 노출이 여전히 0 — 제안 조건인 「빙고 한 줄 완성」에 도달한 유저가 이번 주 0명이었다. 핵심 지표는 제4생활관(활성·전환)과 길가 식물(활성)이 비어 있다. 유저 30일 창(8/14~9/14) 511명(+197), ADHD −30·빙고 −14 는 초기 유입이 창 밖으로 나간 것이다. 문의 0, 리뷰 6건 4.8점 변동 없음. 새 공지: 10월 초(9월분)부터 정산 정책 변경(역발행 세금계산서 승인 마감 익월 4영업일 → 익월 10일), SDK 3.0.0~3.1.0 Origin 차이(우리 7개 앱이 3.0.5), SDK 3.x 미만 신규 등록 제한(10/5, 해당 없음).",
+  "pending_review_note": "9/21 저녁 점검. 앱 18개(맛있는 키보드 9/16 출시). 지난주 검토에 넣은 판은 전부 라이브(대부분 9/15 07:13, ADHD -24·빈 페이지 -9·달 -15 는 9/21 16:13). 검토 중은 맛있는 키보드 -13(9/21 18:07 접수) 하나, 7일 넘은 검토 0. 출시 버튼 누른 것 0건. 월요일 파쇄소 앱 정보 승인됨. 이번 주 반려 2건(여름 옆자리 -13·한 단어 -7, 원문: 「1. 앱 이용 중 뒤로가기를 누르면 이전 화면으로 돌아가야 하는데, 미니앱이 종료돼요. 이전 화면으로 돌아가도록 구현해주세요.」)은 뒤 판(-14·-8)이 라이브. 핵심 지표 18개 전부 활성·전환 등록. 문의 1건(맛있는 키보드, 광고 시청 안 됨) 9/21 답변 완료. 리뷰 14건 평균 4.94 — 9/19 13:57~14:01 같은 표시명이 6개 앱에 5점을 남겨 임원에 올림. 새 공지: 10/22부터 노출 정책 변경(출시/추천/부스팅, 추천은 UX·실사용지표·리뷰·성능 충족, 운영 중 앱에도 적용), 「미니앱 구경하고 포인트 받기」 프로모션(자체 예산). 광고 누적 119노출 803원 → 210노출 1,446원, 월요일 파쇄소 107노출 1,015원(70%), 달의 뒷면 211원 2위. 빙고빙수 누적 노출 여전히 0.",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176",
   "impressions_since_launch": 6,
   "ad_requests_since_launch": 39,
   "revenue_since_launch_krw": 33,
-  "users_metric": "최근 30일 창 (2026-08-14 ~ 2026-09-14). 감소분은 이탈이 아니라 창 밖으로 밀려난 초기 유저다. 증감은 지난주(9/7) 대비, 제4생활관·길가 식물·탐조 수첩은 신규라 전량이 증가분이다.",
+  "users_metric": "최근 30일 창 (2026-08-21 ~ 2026-09-21). 감소분은 이탈이 아니라 창 밖으로 밀려난 초기 유저다. 증감은 지난주(9/14) 대비, 맛있는 키보드는 신규라 전량이 증가분이다.",
   "new_users_today": null,
   "ad_requests_total": null,
   "fill_rate_total": null,
   "check_cadence": "주 1회 (월요일 19:07)",
   "next_deadlines": [
-    "2026-09-21 15:00 — 앱인토스 PO 웨비나(노출 기준·부스팅 프로그램 최초 공개). 신청 안 함(대표님 결정) — 9/22 점검 때 공지 자료만 확인",
     "2026-09-29 — 비게임 미니앱 전체 점검 사전 조치 기한",
     "2026-09-30 — 비게임 미니앱 전수 점검 시작(약 한 달간 순차)",
     "2026-09-30 — 8월 광고 정산 78원 지급 예정",
     "2026-10-05 — SDK 3.x 미만 신규 등록 제한(우리 앱 해당 없음)",
-    "2026-10-10 — 9월분 역발행 세금계산서 승인 마감(새 정산 정책)"
+    "2026-10-10 — 9월분 역발행 세금계산서 승인 마감(새 정산 정책)",
+    "2026-10-22 — 새 미니앱 노출 정책 시행(추천·부스팅 선정)"
   ],
   "settlement_confirmed_krw": 78,
   "settlement_note": "8월분 확정: 광고수익 71원 + VAT 7원 = 78원, 수수료 0원(면제). 콘솔 상태 PENDING, 9월 30일 지급 예정 — 아직 미지급이라 settled_revenue_krw 는 0."
