@@ -1,4 +1,11 @@
 # Tistory_cloud
+
+> 🌐 **브라우저는 `mcp__aside__repl` 로 몬다.** 도구 목록에 `aside` 가 안 보이면 없는 게 아니라 deferred 다 —
+> **맨 먼저 `ToolSearch(query="select:mcp__aside__repl")`** 로 불러온 뒤 `snapshot()`·`locator`·`getByRole`·`evaluate` 로
+> DOM 을 직접 다룬다. `aside repl` CLI·`aside.sh`(CDP)는 셸 배치 스크립트 안에서만(그 경로는 승인창 없이 도는 이점이 있다).
+> **좌표 클릭은 쓰지 않는다.** 스크린샷은 조작 수단이 아니라 ①막혔을 때 진단 ②캡챠를 사람에게 넘길 때만 —
+> MCP 에서는 `display(await page.screenshot())` 한 줄이면 파일 저장·Read 왕복이 없다.
+> 티스토리 편집기 조작법(제목은 진짜 입력, 본문은 합성 paste 등)은 `~/.claude/rules/aside-browser.md` 「티스토리 편집기」 절.
 ## 무엇
 - 티스토리 괴담 원고 생성·연재 도구와 콘텐츠 지표를 모으는 Streamlit 파이프라인 HQ.
 - 2026-09-05부터 HQ는 읽기 전용이다. 발행·시간표 편집·괴담 생성 UI를 되살리지 않는다.
