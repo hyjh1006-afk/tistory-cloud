@@ -77,8 +77,14 @@ for i in $(seq 1 60); do
   sleep 5
   alive=$("$A" tabs 2>/dev/null | grep -ci "newpost/${ID}" || echo 0)
   [ "$alive" = "0" ] && break
-  cap=$("$A" eval "$TAB" '(()=>document.body.innerText.includes("정답을 입력해주세요")?"y":"n")()' 2>/dev/null | tr -d '"')
-  [ "$cap" = "y" ] && { [ "$i" = "1" ] && echo "  ⏸ CAPTCHA — 사람이 풀어주기를 기다리는 중"; continue; }
+  # ⚠️ "정답을 입력해주세요" 는 input 의 **placeholder 속성**이라 innerText 에 안 잡힌다(2026-09-07 실측).
+  #    이것만 보고 있으면 CAPTCHA 를 통째로 못 보고 지나가 "저장 확인 실패"로만 끝난다.
+  cap=$("$A" eval "$TAB" '(()=>{const t=document.body.innerText||"";const ph=[...document.querySelectorAll("input")].some(i=>/정답을 입력/.test(i.placeholder||""));return (ph||/DKAPTCHA|지도에서 아래 장소/.test(t))?"y":"n"})()' 2>/dev/null | tr -d '"')
+  if [ "$cap" = "y" ]; then
+    [ "${said:-0}" = "0" ] && { echo "  ⏸ CAPTCHA — 사람이 풀 때까지 대기 (자동으로 풀지 않는다)"; said=1; }
+    continue
+  fi
+  [ "${said:-0}" = "1" ] && { echo "  ▶ CAPTCHA 해결됨 — 저장 진행"; said=0; sleep 5; break; }
 done
 
 # 8) 저장 확인 — 확인용 목록 탭이 없으면 열고 본다
