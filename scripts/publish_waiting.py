@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""대기 목록 괴담 → 티스토리 비공개 저장 (Aside repl). 진입점은 publish_waiting.sh — 종료 코드도 거기 적혀 있다.
+"""대기 목록 괴담 → 티스토리 공개 발행 (Aside repl). 진입점은 publish_waiting.sh — 종료 코드도 거기 적혀 있다.
+
+2026-09-30 대표님: "이제 그냥 비공개로 올리지말고 처음부터 공개로 올리게 수정해줘" → 기본이 공개 발행이다.
+되돌릴 땐 PW_VISIBILITY=private (아래 VIS 표). 그 전(9/14~9/30)은 비공개 저장 전용이었다.
 
 한 번 실행에 종류(두 줄·단편)마다 가장 오래된 1편씩만 올린다(SKILL 의 "오늘 몫"과 같음).
 
@@ -43,6 +46,14 @@ LEN_TOL = 0.02
 GAP_BETWEEN_POSTS_S = 30        # 연속 저장은 DKAPTCHA 를 부른다(2026-09-07 실측: 2편째에 뜸)
 
 OK, GATE, ASIDE_DOWN, LOGIN, UNVERIFIED, CAPTCHA, BUSY = 0, 1, 2, 4, 5, 7, 8
+
+# 발행 레이어의 공개 설정. radio = 고를 라디오 id, others = 꺼져 있어야 하는 라디오, btn = 그때 발행 버튼 문구,
+# api = /manage/posts.json 의 visibility 값. 버튼 문구가 다르면 게이트가 막는다(저장 안 함).
+VIS_TABLE = {
+    "public":  {"radio": "open20", "others": ["open0", "open15"], "btn": "공개 발행",  "api": "PUBLIC",  "label": "공개"},
+    "private": {"radio": "open0",  "others": ["open15", "open20"], "btn": "비공개 저장", "api": "PRIVATE", "label": "비공개"},
+}
+VIS = VIS_TABLE[os.environ.get("PW_VISIBILITY", "public")]
 EDITOR_TAB_RE = re.compile(r"tistory\.com/manage/(newpost|post)(/|\?|$)")
 
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -316,7 +327,7 @@ return await P.evaluate(async (bk) => {{
 
 
 def prepare_editor(tid: str, it: dict, dry: bool = False) -> tuple[dict, list[str]]:
-    d = {"title": it["title"], "html": it["html"], "cat": it["cat"], "typed": it["title"]}
+    d = {"title": it["title"], "html": it["html"], "cat": it["cat"], "typed": it["title"], "radio": VIS["radio"]}
     # 게이트가 진짜 잡는지 반증용 (dry-run 에서만): PW_TEST_BREAK=title 이면 제목을 일부러 틀리게 친다
     if dry and os.environ.get("PW_TEST_BREAK") == "title":
         d["typed"] = it["title"] + " X"
@@ -375,15 +386,21 @@ const s2 = await P.evaluate(async (D) => {{
   if (!done) return {{ok:false, why:'완료 버튼 없음'}};
   done.click();
   let o0 = null;
-  for (let i = 0; i < 20 && !o0; i++) {{ await new Promise(r => setTimeout(r, 250)); o0 = document.getElementById('open0'); }}
+  for (let i = 0; i < 20 && !o0; i++) {{ await new Promise(r => setTimeout(r, 250)); o0 = document.getElementById(D.radio); }}
   if (!o0) return {{ok:false, why:'발행 레이어 안 뜸', title, tags, cat}};
-  (document.querySelector('label[for=open0]') || o0.parentElement).click();
+  (document.querySelector('label[for=' + D.radio + ']') || o0.parentElement).click();
   await new Promise(r => setTimeout(r, 800));
+  // 예약이 켜져 있으면 "지금 발행"이 아니게 된다 — 발행일 「현재」가 골라져 있는지도 같이 본다
+  const dateBtns = [...document.querySelectorAll('.layer_post button, .editor_layer button, button')].filter(b => b.offsetParent !== null && /^(현재|예약)$/.test(b.textContent.trim()));
+  const nowBtn = dateBtns.find(b => b.textContent.trim() === '현재');
+  const resBtn = dateBtns.find(b => b.textContent.trim() === '예약');
+  const on = b => !!b && (/(^|\\s)(on|active|selected|checked)(\\s|$)/.test(b.className) || b.getAttribute('aria-pressed') === 'true' || b.getAttribute('aria-selected') === 'true');
   const btn = document.getElementById('publish-btn');
   const vis = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null).map(b => b.textContent.trim()).filter(Boolean);
   return {{ok:true, title, tags, cat,
     open0: document.getElementById('open0').checked, open15: !!document.getElementById('open15')?.checked, open20: !!document.getElementById('open20')?.checked,
     btnText: btn ? btn.textContent.trim() : null, btnDisabled: btn ? btn.disabled : null,
+    reserved: on(resBtn) && !on(nowBtn), dateBtns: dateBtns.map(b => b.textContent.trim() + ':' + b.className),
     saving: vis.includes('저장중'), blocked: window.__pwBlocked}};
 }}, D);
 const shot = await P.screenshot({{type:'jpeg', quality:55}});
@@ -399,8 +416,9 @@ def gates(it: dict, r: dict) -> dict[str, bool]:
         "제목 일치": r.get("title") == it["title"],
         "본문 있음": got > 0 and src > 0,
         "본문 길이 ±2%": src > 0 and abs(got - src) / src <= LEN_TOL,
-        "비공개": bool(r.get("open0")) and not r.get("open15") and not r.get("open20")
-                 and r.get("btnText") == "비공개 저장" and r.get("btnDisabled") is False,
+        VIS["label"]: bool(r.get(VIS["radio"])) and not any(r.get(o) for o in VIS["others"])
+                 and r.get("btnText") == VIS["btn"] and r.get("btnDisabled") is False,
+        "예약 아님": not r.get("reserved"),
         "카테고리": r.get("cat") == it["cat"],
         "태그 없음": r.get("tags", "x") == "",
         "저장중 아님": not r.get("saving"),
@@ -409,12 +427,12 @@ def gates(it: dict, r: dict) -> dict[str, bool]:
 
 def cancel_layer(tid: str) -> None:
     body = attach_js(tid) + """
-return await P.evaluate(async () => {
+return await P.evaluate(async (BTN) => {
   const c = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === '취소' && b.offsetParent !== null);
   if (c) c.click();
   await new Promise(r => setTimeout(r, 600));
-  return {ok:true, layerGone: ![...document.querySelectorAll('button')].some(b => b.textContent.trim() === '비공개 저장' && b.offsetParent !== null), blocked: window.__pwBlocked};
-});
+  return {ok:true, layerGone: ![...document.querySelectorAll('button')].some(b => b.textContent.trim() === BTN && b.offsetParent !== null), blocked: window.__pwBlocked};
+}, """ + json.dumps(VIS["btn"], ensure_ascii=False) + """);
 """
     try:
         log(f"  · 발행 레이어 닫음 {repl(body)[0]}")
@@ -423,26 +441,29 @@ return await P.evaluate(async () => {
 
 
 def commit_save(tid: str, it: dict, prepared: dict) -> tuple[dict, list[str]]:
-    d = {"title": it["title"], "cat": it["cat"], "edText": prepared.get("edText")}
+    d = {"title": it["title"], "cat": it["cat"], "edText": prepared.get("edText"),
+         "radio": VIS["radio"], "others": VIS["others"], "btn": VIS["btn"]}
     body = attach_js(tid) + f"""
 const D = {json.dumps(d, ensure_ascii=False)};
 // 클릭 직전, 같은 틱에서 전부 다시 확인한다. 하나라도 어긋나면 누르지 않는다.
 const pre = await P.evaluate((D) => {{
   const norm = s => (s || '').replace(/\\s+/g, '');
-  const o0 = document.getElementById('open0'), o15 = document.getElementById('open15'), o20 = document.getElementById('open20');
+  const want = document.getElementById(D.radio);
+  const othersOff = D.others.every(id => {{ const e = document.getElementById(id); return !(e && e.checked); }});
   const btn = document.getElementById('publish-btn');
   const chk = {{
     title: document.querySelector('#post-title-inp')?.value === D.title,
     cat: document.querySelector('#category-btn')?.textContent.replace(/더보기\\s*$/, '').trim() === D.cat,
     body: norm(tinymce.get('editor-tistory').getBody().textContent).length === D.edText,
-    private: !!o0 && o0.checked && !(o15 && o15.checked) && !(o20 && o20.checked),
-    button: !!btn && btn.textContent.trim() === '비공개 저장' && !btn.disabled && btn.offsetParent !== null,
+    visibility: !!want && want.checked && othersOff,
+    button: !!btn && btn.textContent.trim() === D.btn && !btn.disabled && btn.offsetParent !== null,
   }};
   if (!Object.values(chk).every(Boolean)) return {{clicked:false, chk}};
   btn.click();
   return {{clicked:true, chk}};
 }}, D);
 if (!pre.clicked) return {{state:'not-clicked', pre}};
+const BTN = D.btn;
 let state = 'unknown', busyFor = 0, last = null;
 for (let i = 0; i < 45; i++) {{
   await sleep(1000);
@@ -450,16 +471,16 @@ for (let i = 0; i < 45; i++) {{
   if (!/\\/manage\\/newpost/.test(u)) {{ state = 'navigated'; last = u; break; }}
   let st = null;
   try {{
-    st = await P.evaluate(() => {{
+    st = await P.evaluate((BTN) => {{
       const vis = f => f.offsetHeight > 50 && getComputedStyle(f).visibility !== 'hidden';
       const modal = [...document.querySelectorAll('[role=dialog],[role=alertdialog],.layer_modal,.modal,.layer_alert')].filter(e => e.offsetParent !== null).map(e => e.innerText).join(' ').slice(0, 200);
       return {{
         busy: [...document.querySelectorAll('button')].some(b => (b.innerText || '').trim() === '저장중'),
         dk: !!document.querySelector('iframe[src*="dkaptcha"]') || /DKAPTCHA|지도에서|빈칸에 들어갈/.test(document.body.innerText),
         rc: [...document.querySelectorAll('iframe[src*="recaptcha"]')].some(vis),
-        modal, layer: [...document.querySelectorAll('button')].some(b => b.textContent.trim() === '비공개 저장' && b.offsetParent !== null),
+        modal, layer: [...document.querySelectorAll('button')].some(b => b.textContent.trim() === BTN && b.offsetParent !== null),
       }};
-    }});
+    }}, BTN);
   }} catch (e) {{ continue; }}          // 페이지 이동 중이면 평가가 끊긴다
   last = st;
   if (st.dk || st.rc) {{ state = 'captcha'; break; }}
@@ -627,7 +648,7 @@ def run(args) -> int:
                 bad = [k for k, v in g.items() if not v]
                 raise Stop(GATE, f"게이트 실패 {bad} — 저장 안 함")
             if dry:
-                log(f"  DRY-RUN would save: {it['title']} [{it['cat']}] 비공개")
+                log(f"  DRY-RUN would save: {it['title']} [{it['cat']}] {VIS['label']}")
                 cancel_layer(tid)
                 summary.append({"key": it["key"], "result": "dry-run", "screenshot": shot})
                 continue
@@ -650,17 +671,17 @@ def run(args) -> int:
 
             v = verify_saved(tid, it, it.get("catId"))
             log(f"  확인: {json.dumps(v, ensure_ascii=False)}")
-            if v.get("found") and v.get("visibility") != "PRIVATE":
-                raise Stop(UNVERIFIED, f"🚨 비공개가 아닌 상태로 저장됨: /{v.get('id')} {v.get('visibility')} — 즉시 확인")
-            ok = (v.get("found") and v.get("visibility") == "PRIVATE" and str(v.get("category", "")).endswith(it["cat"])
+            if v.get("found") and v.get("visibility") != VIS["api"]:
+                raise Stop(UNVERIFIED, f"🚨 {VIS['label']}가 아닌 상태로 저장됨: /{v.get('id')} {v.get('visibility')} — 즉시 확인")
+            ok = (v.get("found") and v.get("visibility") == VIS["api"] and str(v.get("category", "")).endswith(it["cat"])
                   and v.get("srcLink") and (v.get("reddit") or 0) >= max(1, len(it["links"])))
             if not ok:
                 raise Stop(UNVERIFIED, f"저장했지만 확인 실패: {it['title']} ({json.dumps(v, ensure_ascii=False)[:200]}) — 재시도 금지")
             mark_done(it, dry)
             clicked = False
-            summary.append({"key": it["key"], "result": "saved-private", "id": v["id"], "url": v.get("permalink"),
+            summary.append({"key": it["key"], "result": "saved", "id": v["id"], "url": v.get("permalink"),
                             "title": it["title"], "sources": list(zip(it["authors"], it["links"]))})
-            log(f"  ✓ 비공개 저장 확인: {v.get('permalink')}")
+            log(f"  ✓ {VIS['btn']} 확인: {v.get('permalink')}")
     except Stop as exc:
         code = exc.code
         log(f"✗ [{exc.code}] {exc.msg}")
@@ -690,7 +711,7 @@ def run(args) -> int:
 
     (LOG_DIR / f"publish_{TS}.json").write_text(json.dumps({"exit": code, "dry": dry, "items": summary}, ensure_ascii=False, indent=1), encoding="utf-8")
     for s in summary:
-        if s["result"] == "saved-private":
+        if s["result"] == "saved":
             print(f"SAVED\t{s['title']}\t{s['url']}")
             for a, l in s["sources"]:
                 print(f"SOURCE\t{a}\t{l}")
@@ -698,8 +719,8 @@ def run(args) -> int:
             print(f"ALREADY\t{s['key']}\t/{s['id']} {s['visibility']}")
         else:
             print(f"DRYRUN\t{s['key']}\t{s.get('screenshot')}")
-    if code == OK and not dry and any(s["result"] == "saved-private" for s in summary):
-        notify(f"괴담 {sum(s['result'] == 'saved-private' for s in summary)}편 비공개 저장 완료")
+    if code == OK and not dry and any(s["result"] == "saved" for s in summary):
+        notify(f"괴담 {sum(s['result'] == 'saved' for s in summary)}편 {VIS['btn']} 완료")
     print(f"EXIT={code}  LOG={LOG_PATH}")
     return code
 

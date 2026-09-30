@@ -3,6 +3,8 @@
 
   prompt <mode>  : Reddit 수집 → 번역 프롬프트만 만든다 (output/chatgpt_prompt.txt)
                    → 번역은 클로드가 직접 하고 output/translation_result.txt 에 쓴다
+  swap <번호…>   : (두 줄 전용) 거슬리는 글을 빼고 예비 글로 채운다. 번역 전에 부른다.
+                   번호는 그대로고 그 자리 원문만 바뀐다 → 바뀐 원문이 바로 출력된다
   finish         : translation_result.txt 를 읽어 HTML 완성 + 상태 저장
   auto <mode>    : 옛 방식 — 번역까지 제미나이 API로 한 번에 (예비용)
 
@@ -28,7 +30,9 @@ from src.workflow import (  # noqa: E402
     generate_full_auto,
     generate_nosleep_prompt,
     generate_translation_prompt,
+    swap_two_sentence_posts,
 )
+from src.manual_translation import post_source_text  # noqa: E402
 
 LOCAL_OUTPUTS = ROOT / "state" / "local_outputs"
 MODES = {"two_sentence", "nosleep"}
@@ -66,7 +70,7 @@ def _save_and_push(result: dict, mode: str) -> Path:
 def main() -> int:
     args = sys.argv[1:]
     if not args:
-        print("사용법: run_gwidam.py prompt|finish|auto [two_sentence|nosleep]", file=sys.stderr)
+        print("사용법: run_gwidam.py prompt|swap|finish|auto [two_sentence|nosleep | 번호…]", file=sys.stderr)
         return 2
 
     stage = args[0]
@@ -91,6 +95,35 @@ def main() -> int:
         print(f"제목(임시): {result['title']}")
         print(f"PROMPT_FILE={CHATGPT_PROMPT_PATH}")
         print(f"RESULT_FILE={TRANSLATION_RESULT_PATH}")
+        return 0
+
+    if stage == "swap":
+        try:
+            numbers = [int(a) for a in args[1:]]
+        except ValueError:
+            numbers = []
+        if not numbers:
+            print("사용법: run_gwidam.py swap <번호> [<번호> …]   예: swap 582 583", file=sys.stderr)
+            return 2
+        try:
+            result = swap_two_sentence_posts(numbers, logger)
+        except RuntimeError as exc:
+            print(f"swap 실패: {exc}", file=sys.stderr)
+            return 1
+        for sw in result["swapped"]:
+            post = sw["in"]
+            print(f"--- {sw['number']}번 교체 (뺀 글: {sw['out'].get('url')})")
+            print(f"작성자: u/{post['author']}")
+            print(f"원문 링크: {post['url']}")
+            print("원문:")
+            print(post_source_text(post))
+            print()
+        print(f"SPARES_LEFT={result['spares_left']}")
+        print(f"PROMPT_FILE={CHATGPT_PROMPT_PATH}")
+        try:  # 새로 '사용됨'으로 적은 글을 클라우드 상태에도 반영
+            print(github_state.push_state(), flush=True)
+        except Exception as exc:
+            print(f"GitHub 상태 저장 실패(로컬은 반영됨): {exc}", file=sys.stderr, flush=True)
         return 0
 
     if stage == "finish":
