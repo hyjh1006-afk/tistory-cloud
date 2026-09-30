@@ -22,6 +22,8 @@ from .paths import CHATGPT_PROMPT_PATH, PENDING_POSTS_PATH, TRANSLATION_RESULT_P
 from .reddit_client import RedditClient, select_unused_posts
 from .reddit_errors import REDDIT_COLLECT_FAILED_MSG, RedditCollectError
 
+SPARE_COUNT = 10  # 두 줄 괴담 예비 후보 수 (거슬리는 글을 빼고 채울 몫)
+
 
 def generate_translation_prompt(
     logger: logging.Logger,
@@ -49,8 +51,13 @@ def generate_translation_prompt(
         raise RuntimeError(str(exc) or REDDIT_COLLECT_FAILED_MSG) from exc
     logger.info("Fetched %s reddit posts", len(posts))
 
-    selected_posts = select_unused_posts(posts, used_store, count=10)
-    logger.info("Selected %s unused eligible posts", len(selected_posts))
+    # 10편 + 예비. 번역하는 쪽이 "이건 거슬린다"고 판단한 글은 swap 으로 예비와 바꾼다
+    # (대표님 2026-09-30: "거슬린다 생각하면 알아서 제끼고 다음글부터 두줄괴담에 포함시키라").
+    candidates = select_unused_posts(posts, used_store, count=10 + SPARE_COUNT)
+    selected_posts, spare_posts = candidates[:10], candidates[10:]
+    logger.info(
+        "Selected %s unused eligible posts (+%s spare)", len(selected_posts), len(spare_posts)
+    )
 
     if len(selected_posts) < 10:
         raise RuntimeError(
@@ -76,6 +83,9 @@ def generate_translation_prompt(
         "start_number": start_number,
         "end_number": end_number,
         "selected_posts": selected_posts,
+        # 예비는 아직 '사용됨'으로 적지 않는다 — swap 으로 실제 들어갈 때 적는다(안 쓰면 다음 회차 후보로 남는다)
+        "spare_posts": spare_posts,
+        "skipped_posts": [],
     }
     write_json(PENDING_POSTS_PATH, pending)
 
@@ -91,6 +101,51 @@ def generate_translation_prompt(
         "translation_result_path": str(TRANSLATION_RESULT_PATH),
         "selected_posts": selected_posts,
     }
+
+
+def swap_two_sentence_posts(numbers: list[int], logger: logging.Logger) -> dict[str, Any]:
+    """두 줄 괴담 후보 중 지정한 번호의 글을 빼고 예비 글로 채운다 (번역 전에 부른다).
+
+    뺀 글은 이미 '사용됨'으로 적혀 있어 다시 안 뽑힌다. 들어온 예비 글은 이때 '사용됨'으로 적는다.
+    번호·제목·범위는 그대로다 — 그 자리의 원문만 바뀐다. 프롬프트 파일도 다시 쓴다.
+    """
+    pending = read_json(PENDING_POSTS_PATH, {})
+    if not pending or pending.get("mode", "two_sentence") != "two_sentence":
+        raise RuntimeError("두 줄 괴담 프롬프트가 없습니다. 먼저 prompt two_sentence 를 돌리세요.")
+
+    start_number = int(pending["start_number"])
+    selected = pending["selected_posts"]
+    spares = pending.get("spare_posts", [])
+    skipped = pending.setdefault("skipped_posts", [])
+    blog_range = pending["blog_range"]
+    used_store = UsedPostStore()
+
+    swapped: list[dict[str, Any]] = []
+    for number in numbers:
+        index = number - start_number
+        if not 0 <= index < len(selected):
+            raise RuntimeError(
+                f"{number}번은 이번 범위({start_number}~{start_number + len(selected) - 1})가 아닙니다."
+            )
+        if not spares:
+            raise RuntimeError(
+                f"예비 글이 떨어졌습니다 — {number}번은 못 바꿨습니다. "
+                "(이미 바꾼 것까지는 저장됨. 남은 글 중 덜 거슬리는 쪽을 쓰세요)"
+            )
+        old_post, new_post = selected[index], spares.pop(0)
+        selected[index] = new_post
+        skipped.append({"number": number, "post_id": old_post.get("post_id"), "url": old_post.get("url"),
+                        "title": old_post.get("title")})
+        used_store.add_posts([new_post], blog_range)
+        swapped.append({"number": number, "out": old_post, "in": new_post})
+        logger.info("Swapped %s: %s -> %s", number, old_post.get("post_id"), new_post.get("post_id"))
+        # 하나 바꿀 때마다 저장한다 — 중간에 예비가 떨어져도 앞의 교체는 남는다
+        write_json(PENDING_POSTS_PATH, pending)
+        CHATGPT_PROMPT_PATH.write_text(
+            build_chatgpt_prompt(pending["title"], start_number, selected), encoding="utf-8"
+        )
+
+    return {"swapped": swapped, "spares_left": len(spares), "skipped_total": len(skipped)}
 
 
 def generate_nosleep_prompt(logger: logging.Logger) -> dict[str, Any]:
