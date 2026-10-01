@@ -4,6 +4,11 @@
 #           cafe_promo.sh <cedar파일명>          예) cafe_promo.sh ep1  ← 원고에서 만든다
 #           cafe_promo.sh <cedar파일명> <글번호>   (postmap 에 없을 때)
 #   글번호 모드는 본문 뒤의 「해설」(H2) 섹션부터는 잘라낸다 — 블로그용 요약이라 카페엔 안 넣는다.
+#   본문 맨 위의 「원출처」(레딧 링크)·「원작자에게 허락받은 번역본입니다.」 줄도 뺀다(대표님 2026-10-01).
+#     ↳ 맨 위에 연달아 있을 때만 뺀다. 출처는 카페 글의 「출처 : 티스토리 링크」로 대신한다.
+#
+# 시험: CAFE_DRY=extract cafe_promo.sh <글번호>  → 카페에 갈 본문만 뽑아 보여 주고 끝(카페 안 건드림)
+#       CAFE_DRY=editor  cafe_promo.sh <글번호>  → 카페 편집기에 다 채우고 등록 직전에 멈춤(스크린샷 남기고 탭 닫음)
 #
 # 형식(2026-09-06 사용자 기존 글에서 확인):
 #   게시판=홍콩할매의 속삭임 / 말머리=소설 / 제목=티스토리 제목 그대로
@@ -16,6 +21,7 @@ TAB='~subdued20club$'
 BLOG="https://tester188.tistory.com"
 LOCK=/tmp/daum-cafe-editor.lock
 ARG="$1"
+DRY="${CAFE_DRY:-}"
 W="${TMPDIR:-/tmp}/cafepromo.$$"; mkdir -p "$W"
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -29,7 +35,10 @@ if printf '%s' "$ARG" | grep -qE '^[0-9]+$'; then
 const t=(await listBrowserTabs()).find(x=>x.url.replace(/[?#].*/,'').endsWith('/$PID'));
 const p=await attachBrowserTab(t.targetId);
 const d=await p.evaluate(()=>{
-  const c=document.querySelector('.entry-content, .tt_article_useless_p_margin');
+  // 본문 영역 이름이 글마다 다르다(2026-10-01 실측): 대부분 .tt_article_useless_p_margin.contents_style 이지만
+  // /38(옛 글)·/216(9/30 두 줄) 같은 글은 .article_view 안의 .contents_style 뿐이다 — 예전 선택자로는 본문을 못 읽었다.
+  const c=document.querySelector('.entry-content, .tt_article_useless_p_margin, .article_view .contents_style, .contents_style');
+  if(!c) return {title:null, lines:[], err:'no container'};
   const kids=[...c.children];
   let title=null, stop=kids.length;
   kids.forEach((e,i)=>{
@@ -51,7 +60,12 @@ const d=await p.evaluate(()=>{
     if(skip){ if(/^원문 링크\s*:/.test(l)) skip=false; else return; }
     lines.push(l);
   });
-  return {title, lines};
+  // 맨 위의 「원출처」·「원작자에게 허락받은 번역본입니다.」 는 카페로 옮기지 않는다(대표님 2026-10-01).
+  // 맨 위에 연달아 있는 것만 — 본문 중간의 같은 말은 건드리지 않는다.
+  const HEAD=[/^원\s*출처\s*(:.*)?$/, /^원작자(에게|의)?\s*허락(을)?\s*받은\s*번역본입니다\.?$/];
+  const dropped=[];
+  while(lines.length && HEAD.some(r=>r.test(lines[0]))) dropped.push(lines.shift());
+  return {title, lines, dropped};
 });
 console.log('@@JSON@@'+JSON.stringify(d));
 " 2>/dev/null | grep '^@@JSON@@' | sed 's/^@@JSON@@//' > "$W/post.json"
@@ -61,7 +75,10 @@ import json,sys
 d=json.load(open('$W/post.json',encoding='utf-8'))
 open('$W/title.txt','w',encoding='utf-8').write(d['title'] or '')
 open('$W/body.txt','w',encoding='utf-8').write('\n'.join(d['lines']))
+print('  · 맨 위에서 뺀 줄:', ' / '.join(d.get('dropped') or []) or '없음')
 "
+  [ -s "$W/body.txt" ] || { echo "✗ 본문이 비었다: $URL"; rm -rf "$W"; exit 1; }
+  for _ in 1 2 3; do ~/.claude/tools/screen/aside.sh closeend "tistory.com/$PID" >/dev/null 2>&1; done
   TITLE="$(cat "$W/title.txt")"
 else
   # ── 원고 모드: cedar/<이름>.txt + postmap 에서 글번호 ──
@@ -77,6 +94,12 @@ fi
 [ -n "$TITLE" ] || { echo "✗ 제목이 비었다"; rm -rf "$W"; exit 1; }
 echo "▶ $TITLE"
 echo "  출처: $URL"
+if [ "$DRY" = "extract" ]; then
+  echo "  [DRY extract] 카페에 들어갈 본문 $(grep -c . "$W/body.txt")줄 — 앞 6줄:"
+  head -6 "$W/body.txt" | sed 's/^/    | /'
+  echo "    …"; tail -2 "$W/body.txt" | sed 's/^/    | /'
+  rm -rf "$W"; exit 0
+fi
 
 # ── 편집기 잠금 (카페도 임시저장 슬롯이 하나다) ──────────────────
 if ! mkdir "$LOCK" 2>/dev/null; then
@@ -152,12 +175,25 @@ aside repl "
 const t=(await listBrowserTabs()).find(x=>/subdued20club\$/.test(x.url));
 const p=await attachBrowserTab(t.targetId);
 const fw=p.frames().find(f=>/united_write/.test(f.url()));
-await fw.evaluate(()=>{
+const r4=await fw.evaluate(()=>{
   const d=document.querySelector('#keditorContainer_ifr').contentDocument;
   const wk=d.createTreeWalker(d.body, NodeFilter.SHOW_TEXT); let n;
   while((n=wk.nextNode())) if(/출처\s*:\s*출처\s*:/.test(n.nodeValue)) n.nodeValue=n.nodeValue.replace(/(출처\s*:\s*)+/,'출처 : ');
+  // 링크 미리보기 카드의 요약문은 다음이 티스토리 글 요약(og:description)을 그대로 가져온다 →
+  // 본문 맨 위의 「원출처」「원작자에게 허락받은 번역본입니다.」가 여기 붙어 들어온다(2026-10-01 실측). 카드에서도 지운다.
+  const CUT=/원\s*출처|원작자(에게|의)?\s*허락(을)?\s*받은\s*번역본입니다\.?/g;
+  const ed=(window.tinymce&&tinymce.activeEditor)||null;
+  const fix=()=>d.body.querySelectorAll('figure[data-ke-type=opengraph]').forEach(f=>{
+    const a=f.getAttribute('data-og-description'); if(a!==null) f.setAttribute('data-og-description', a.replace(CUT,''));
+    f.querySelectorAll('.og-desc, .og-text p:not(.og-title):not(.og-host)').forEach(e=>{ if(CUT.test(e.textContent)) e.textContent=e.textContent.replace(CUT,''); CUT.lastIndex=0; });
+  });
+  if(ed && ed.undoManager) ed.undoManager.transact(fix); else fix();
+  if(ed){ ed.setDirty(true); ed.fire('change'); }
+  const saved=ed?ed.getContent():d.body.innerHTML;
+  return {editor:!!ed, cardLeft:/원\s*출처|허락받은 번역본/.test((saved.match(/<figure[^>]*data-ke-type=\"opengraph\"[\s\S]*?<\/figure>/)||[''])[0])};
 });
-" >/dev/null 2>&1
+console.log('카드 정리:', JSON.stringify(r4));
+" 2>&1 | grep '카드 정리:' | sed 's/^/  4) /'
 
 # ── 5) 본문 붙여넣기 (합성 paste — setContent 는 안 먹는다) ──────
 python3 - "$W" <<'PY'
@@ -210,6 +246,29 @@ const st=await fw.evaluate(()=>{
 });
 console.log('설정:', st);
 " 2>&1 | grep -E '설정:' | sed 's/^/  6) /'
+
+if [ "$DRY" = "editor" ]; then
+  SHOT="$ROOT/logs/cafe_dry_$(date +%Y%m%d_%H%M%S)_${PID}.png"
+  aside repl "
+const t=(await listBrowserTabs()).find(x=>/subdued20club\$/.test(x.url));
+const p=await attachBrowserTab(t.targetId);
+const fw=p.frames().find(f=>/united_write/.test(f.url()));
+const info=await fw.evaluate(()=>{
+  const d=document.querySelector('#keditorContainer_ifr').contentDocument;
+  const fig=d.body.querySelector('figure[data-ke-type=opengraph]');
+  const body=d.body.cloneNode(true); body.querySelectorAll('figure[data-ke-type=opengraph]').forEach(f=>f.remove());
+  const tx=body.innerText.replace(/\u00a0/g,' '), card=fig?fig.innerText.replace(/\s+/g,' '):'';
+  return {title:(document.querySelector('.title__input')||{}).value, og:d.body.querySelectorAll('figure[data-ke-type=opengraph]').length,
+    bodyWon:/원\s*출처/.test(tx), bodyPerm:/허락받은 번역본/.test(tx), cardWon:/원\s*출처/.test(card), cardPerm:/허락받은 번역본/.test(card),
+    card:card.slice(0,160), cardHtml:fig?fig.outerHTML.slice(0,1500):'', head:tx.split('\n').map(l=>l.trim()).filter(Boolean).slice(0,3)};
+});
+console.log('DRYINFO='+JSON.stringify(info));
+" 2>&1 | grep -E 'DRYINFO=' | sed 's/^/  [DRY editor] /'
+  "$A" shot "$TAB" "$SHOT" >/dev/null 2>&1 && echo "  [DRY editor] 스크린샷 $SHOT"
+  echo "  [DRY editor] 등록은 누르지 않았다 — 편집기 탭을 닫는다"
+  for _ in 1 2 3; do "$A" closeend "subdued20club" >/dev/null 2>&1; done
+  rm -rf "$W"; exit 0
+fi
 
 # ── 7) 등록 ──────────────────────────────────────────────────────
 aside repl "
