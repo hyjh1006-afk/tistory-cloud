@@ -345,3 +345,8 @@
   (본문·카드에 두 말이 남았는지 판정 + 스크린샷 `logs/cafe_dry_*.png`, 탭 닫음).
   실측: extract 8편(166·159·190·176·55·38·216·217) 전부 정상, editor 2편(166·216) 본문·카드 모두 깨끗, 다시 글쓰기 열어도 남은 임시저장 없음.
 - [참고] Aside 탭이 백그라운드면 `innerText` 가 빈 문자열이다(렌더 안 됨). 스크립트는 `aside.sh open`(앞으로 띄움)이라 괜찮지만 repl `openTab` 으로 시험할 땐 `bringToFront()`.
+
+## 2026-10-07
+- [폐지] 파이프라인 HQ(Streamlit, gwidam-maker.streamlit.app) 앱 삭제 + `streamlit_app.py`·`dashboard.py` 제거 — 수익화랩(lab-cloud)으로 통합(대표님 지시). 우주쇼츠·토스·쿠팡·애드센스 숫자는 `ai_monetization_lab/backend/collect_revenue.py` 가 매일 21:00 모은다.
+- [유지] `github_state.py`·`state/`·`src/coupang_links.py` 는 괴담·수집 스크립트가 쓰므로 남김. `st.secrets` 폴백은 import 실패 시 조용히 건너뜀.
+- [남은 것] 이 레포는 Streamlit 이 비공개 레포를 못 읽어 공개였다 — HQ 가 사라졌으니 비공개 전환 가능(대표님 OK 대기).

@@ -7,17 +7,15 @@
 > MCP 에서는 `display(await page.screenshot())` 한 줄이면 파일 저장·Read 왕복이 없다.
 > 티스토리 편집기 조작법(제목은 진짜 입력, 본문은 합성 paste 등)은 `~/.claude/rules/aside-browser.md` 「티스토리 편집기」 절.
 ## 무엇
-- 티스토리 괴담 원고 생성·연재 도구와 콘텐츠 지표를 모으는 Streamlit 파이프라인 HQ.
-- 2026-09-05부터 HQ는 읽기 전용이다. 발행·시간표 편집·괴담 생성 UI를 되살리지 않는다.
+- 티스토리 괴담 원고 생성·연재 도구.
+- 🪦 Streamlit 파이프라인 HQ(gwidam-maker.streamlit.app)는 **2026-10-07 폐지·앱 삭제**했다 — 지표는 수익화랩(lab-cloud)이 매일 21:00 모은다. HQ 를 되살리지 않는다.
 ## 핵심 명령
-- 로컬 HQ: `streamlit run streamlit_app.py`.
 - 연재 HTML 생성: `bash scripts/cedar.sh build <입력.txt>`.
 - 괴담 생성 래퍼: `bash scripts/gwidam.sh two_sentence` 또는 `bash scripts/gwidam.sh nosleep`.
-- 배포: Streamlit Cloud에서 저장소 `main`의 `streamlit_app.py` 선택. 별도 빌드·deploy.sh 없음.
 ## 구조·진입점
-- `streamlit_app.py`: HQ 화면, `dashboard.py`: 지표 함수, `github_state.py`·`state/`: 공유 상태.
+- `github_state.py`·`state/`: 공유 상태(괴담 스크립트가 쓴다 — HQ 와 함께 지우지 말 것). `state/toss_ads.json` 은 수익화랩이 매일 읽는다.
 - `scripts/`: 생성·연재 도구, `src/`: 생성 로직, `cedar/`: 연재 자료, `output/`: 생성물.
-- 인증 정보는 Streamlit Secrets·로컬 비밀 파일로 관리한다. 값은 기록하지 않는다.
+- 인증 정보는 환경변수·로컬 비밀 파일로 관리한다. 값은 기록하지 않는다(코드의 `st.secrets` 폴백은 HQ 시절 잔재로, 없으면 조용히 건너뛴다).
 ## 함정
 - README의 생성 UI·상태 분리 설명은 과거 안내다. 최신 운영은 `WORKLOG.md`를 따른다.
 - 티스토리 임시저장은 블로그당 하나라 동시 편집이 서로 덮어쓴다. 편집 세션을 겹치지 않는다.
