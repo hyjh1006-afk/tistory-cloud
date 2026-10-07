@@ -349,4 +349,4 @@
 ## 2026-10-07
 - [폐지] 파이프라인 HQ(Streamlit, gwidam-maker.streamlit.app) 앱 삭제 + `streamlit_app.py`·`dashboard.py` 제거 — 수익화랩(lab-cloud)으로 통합(대표님 지시). 우주쇼츠·토스·쿠팡·애드센스 숫자는 `ai_monetization_lab/backend/collect_revenue.py` 가 매일 21:00 모은다.
 - [유지] `github_state.py`·`state/`·`src/coupang_links.py` 는 괴담·수집 스크립트가 쓰므로 남김. `st.secrets` 폴백은 import 실패 시 조용히 건너뜀.
-- [남은 것] 이 레포는 Streamlit 이 비공개 레포를 못 읽어 공개였다 — HQ 가 사라졌으니 비공개 전환 가능(대표님 OK 대기).
+- [공개 유지] HQ 가 사라져도 **비공개로 돌리면 안 된다** — 괴담 게시(`gwidam-daily-post` SKILL·`cedar_post.sh`)가 브라우저에서 `raw.githubusercontent.com/.../state/outputs/*.json` 공개 파일로 본문을 받는다. 비공개로 하려면 그 경로부터 바꿔야 한다(괴담 세션 몫). 수익·비용 숫자는 이 레포에 두지 않는다.
