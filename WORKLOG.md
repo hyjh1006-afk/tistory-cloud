@@ -350,3 +350,7 @@
 - [폐지] 파이프라인 HQ(Streamlit, gwidam-maker.streamlit.app) 앱 삭제 + `streamlit_app.py`·`dashboard.py` 제거 — 수익화랩(lab-cloud)으로 통합(대표님 지시). 우주쇼츠·토스·쿠팡·애드센스 숫자는 `ai_monetization_lab/backend/collect_revenue.py` 가 매일 21:00 모은다.
 - [유지] `github_state.py`·`state/`·`src/coupang_links.py` 는 괴담·수집 스크립트가 쓰므로 남김. `st.secrets` 폴백은 import 실패 시 조용히 건너뜀.
 - [공개 유지] HQ 가 사라져도 **비공개로 돌리면 안 된다** — 괴담 게시(`gwidam-daily-post` SKILL·`cedar_post.sh`)가 브라우저에서 `raw.githubusercontent.com/.../state/outputs/*.json` 공개 파일로 본문을 받는다. 비공개로 하려면 그 경로부터 바꿔야 한다(괴담 세션 몫). 수익·비용 숫자는 이 레포에 두지 않는다.
+
+## 2026-10-11
+- [함정] 대기 목록에 있던 10/4 두 줄(591~600)은 이미 공개(/218)였다 — 0단계 `list_waiting` 만 보고 「이번 주 몫 있음」으로 읽으면 안 된다. 스크립트가 "이미 있음"으로 빼 준 뒤 이번 주 두 줄을 새로 만들었다(601~610).
+- [함정] 연속 저장에 DKAPTCHA(지도 문제)가 회차마다 뜬다(이날 3회). 대표님이 캡챠를 풀어도 발행 레이어가 「저장중」에서 멈추고 글이 안 생긴 일이 있었다 → 그 탭을 `aside.sh closeend "/manage/newpost/"` 로 닫아야 스크립트가 다시 돈다(repl closeTab 은 탭이 안 닫혔다 — 대기 10분 걸림).
