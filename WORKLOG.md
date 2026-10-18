@@ -354,3 +354,8 @@
 ## 2026-10-11
 - [함정] 대기 목록에 있던 10/4 두 줄(591~600)은 이미 공개(/218)였다 — 0단계 `list_waiting` 만 보고 「이번 주 몫 있음」으로 읽으면 안 된다. 스크립트가 "이미 있음"으로 빼 준 뒤 이번 주 두 줄을 새로 만들었다(601~610).
 - [함정] 연속 저장에 DKAPTCHA(지도 문제)가 회차마다 뜬다(이날 3회). 대표님이 캡챠를 풀어도 발행 레이어가 「저장중」에서 멈추고 글이 안 생긴 일이 있었다 → 그 탭을 `aside.sh closeend "/manage/newpost/"` 로 닫아야 스크립트가 다시 돈다(repl closeTab 은 탭이 안 닫혔다 — 대기 10분 걸림).
+
+## 2026-10-18
+- [정리] 대표님 지시로 이미 올라간 글의 로컬 데이터 삭제(약 4MB): `state/local_outputs/*`(시더빌 49편 포함, gitignore 사본)·`output/reddit_horror_*`·옛 451 재번역 입력·`logs/*.jpg`. 작업 파일(`chatgpt_prompt.txt`·`translation_result.txt`·`pending_posts.json`)은 남김.
+- [확인] 대기 목록의 cedar_remaster 49편은 **전부 블로그에 있다**(posts.json 제목 대조: 44 공개 + 211~215 예약 10/19~10/23). 「안 올라간 글」 아님 — 다시 예약하지 말 것.
+- [남김] `assets/illustrations`(94MB, git 추적)·`.claude/worktrees/xenodochial-carson-c49b6d`(96MB, 미푸시 커밋 5개)는 안 지움 — 대표님 판단 필요.
