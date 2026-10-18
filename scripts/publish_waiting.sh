@@ -25,4 +25,10 @@ export STATE_REPO="hyjh1006-afk/tistory-cloud"
 export STATE_BRANCH="main"
 GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"; export GITHUB_TOKEN
 cd "$ROOT"
-exec "$ROOT/.venv/bin/python" "$ROOT/scripts/publish_waiting.py" "$@"
+rc=0
+"$ROOT/.venv/bin/python" "$ROOT/scripts/publish_waiting.py" "$@" || rc=$?
+# 다 올라갔으면(0) 올라간 글의 로컬 데이터를 지운다 (2026-10-18 대표님 지시). 시험 실행은 제외.
+if [ "$rc" = 0 ] && [[ " $* " != *" --dry-run "* ]] && [[ " $* " != *" --fixture "* ]]; then
+  "$ROOT/scripts/cleanup_posted.sh" || true
+fi
+exit "$rc"
