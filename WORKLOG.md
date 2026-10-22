@@ -361,3 +361,8 @@
 - [정리] 대표님 「올렸으면 끝난 거」 → `assets/illustrations`(94MB) git rm·`.claude/worktrees/xenodochial-carson-c49b6d`(96MB) 제거. 워크트리의 미푸시 커밋 5개는 `origin/backup/worktree-20260906` 브랜치로 먼저 보존. 폴더 312→118MB.
 - [자동화] `scripts/cleanup_posted.sh` 신설 — `publish_waiting.sh` 가 0 으로 끝나면 자동 호출(dry-run·fixture 제외). 대기 목록(GitHub)에 없는 local_outputs·output/reddit_horror_*·logs/*.jpg·30일 지난 로그 삭제. 대기 목록을 못 읽으면 local_outputs 는 안 건드림. 루틴 SKILL 4단계에 반영.
 - [함정] 삽화를 지웠으니 `cedar_post.sh` 로 옛 연재를 다시 올리면 삽화 없이 올라간다(필요하면 `git checkout d2dcd9c~1 -- assets/illustrations`).
+
+## 2026-10-22
+- [서치콘솔 메일] 「robots.txt에 의해 차단됨」 새 이유 메일 → 원인은 **방명록**. 티스토리가 자동으로 만드는 `sitemap.xml` 에
+  `/guestbook`·`/m/guestbook` 이 들어 있는데, 같은 티스토리 기본 `robots.txt` 가 `Disallow: /guestbook`·`/m/guestbook` 이다(서로 모순).
+  둘 다 티스토리가 관리해 우리가 못 고치고, **글 주소(`/<번호>` 195개)는 하나도 안 막혀 있어** 조치 불필요. 같은 메일이 또 와도 무시.
