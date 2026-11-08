@@ -195,9 +195,10 @@ sleep 4
 said=0
 for i in $(seq 1 180); do
   sleep 5
-  alive=$("$A" tabs 2>/dev/null | grep -c "/manage/newpost/" || echo 0)
+  # grep -c 는 0건이면 "0" 을 찍고 1 로 끝난다 — `|| echo 0` 이면 "0\n0" 이 돼 판정이 영영 안 맞았다(2026-11-08)
+  alive=$("$A" tabs 2>/dev/null | grep -c "/manage/newpost/" || true)
   [ "${alive:-0}" = "0" ] && break          # 편집기가 닫혔다 = 저장 완료
-  busy=$("$A" eval "$TAB" '(()=>[...document.querySelectorAll("button")].some(b=>(b.innerText||"").trim()==="저장중")?"y":"n")()' 2>/dev/null | tr -d '"')
+  busy=$("$A" eval "$TAB" '(()=>[...document.querySelectorAll("button")].some(b=>(b.innerText||"").trim()==="저장중")?"y":"n")()' 2>/dev/null | tr -d '"' || true)
   if [ "$busy" = "y" ]; then
     [ "$said" = "0" ] && { echo "  ⏸ CAPTCHA — 사람이 풀 때까지 대기 (최대 15분)"; said=1; }
     continue
