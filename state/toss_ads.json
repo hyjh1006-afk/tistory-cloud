@@ -1,66 +1,66 @@
 {
-  "updated_at": "2026-11-02 19:40",
+  "updated_at": "2026-11-09 19:00",
   "note": "앱인토스 콘솔은 공개 API가 없어 점검 작업이 콘솔을 읽어 이 파일을 갱신한다(2026-08-30부터 주 1회 월요일). 수익은 콘솔이 알려주는 예상값이며 정산 확정 금액이 아니다. total_users는 누적이 아니라 콘솔 홈 대시보드의 최근 30일 롤링 창 수치다(날짜 범위가 매일 하루씩 밀린다).",
-  "released": 21,
-  "total_apps": 21,
-  "total_users": 430,
-  "users_delta": -9,
+  "released": 23,
+  "total_apps": 24,
+  "total_users": 520,
+  "users_delta": 90,
   "open_inquiries": 0,
-  "impressions": 572,
-  "estimated_revenue_krw": 4960,
+  "impressions": 734,
+  "estimated_revenue_krw": 5990,
   "settled_revenue_krw": 3903,
-  "commission_rate": "9월분 0%(면제, 확정). 정산 요약 commissionInfo appliedRate 0.15 — 10월분부터 15% 적용으로 보임, 임원 확인 대기",
+  "commission_rate": "9월분·10월분 모두 수수료 0원(정산 요약 commission 0). commissionInfo appliedRate 는 0.15로 표기되나 실제 적용 안 됨",
   "apps": [
     {
       "name": "월요일 파쇄소",
       "type": "보상형",
-      "users": 49,
-      "users_delta": -65,
-      "impressions": 168,
-      "cpm_krw": 14994,
-      "revenue_krw": 2519
+      "users": 38,
+      "users_delta": -11,
+      "impressions": 170,
+      "cpm_krw": 14829,
+      "revenue_krw": 2521
+    },
+    {
+      "name": "HIM엔터테인먼트",
+      "type": "보상형·전면형",
+      "users": 321,
+      "users_delta": 135,
+      "impressions": 241,
+      "cpm_krw": 4822,
+      "revenue_krw": 1162
     },
     {
       "name": "맛있는 키보드",
       "type": "보상형",
-      "users": 34,
-      "users_delta": -54,
-      "impressions": 121,
-      "cpm_krw": 6256,
-      "revenue_krw": 757
+      "users": 22,
+      "users_delta": -12,
+      "impressions": 130,
+      "cpm_krw": 7369,
+      "revenue_krw": 958
     },
     {
       "name": "마법컴팩트",
-      "type": "—",
-      "users": 47,
-      "users_delta": 21,
-      "impressions": 12,
-      "cpm_krw": 45833,
-      "revenue_krw": 550
-    },
-    {
-      "name": "HIM엔터테인먼트",
-      "type": "—",
-      "users": 186,
-      "users_delta": 122,
-      "impressions": 104,
-      "cpm_krw": 4202,
-      "revenue_krw": 437
+      "type": "보상형·전면형",
+      "users": 58,
+      "users_delta": 11,
+      "impressions": 25,
+      "cpm_krw": 25760,
+      "revenue_krw": 644
     },
     {
       "name": "제4생활관",
       "type": "전면형·보상형",
-      "users": 39,
-      "users_delta": -12,
+      "users": 31,
+      "users_delta": -8,
       "impressions": 32,
-      "cpm_krw": 6750,
-      "revenue_krw": 216
+      "cpm_krw": 6781,
+      "revenue_krw": 217
     },
     {
       "name": "달의 뒷면",
       "type": "전면형·배너",
-      "users": 5,
-      "users_delta": -2,
+      "users": 1,
+      "users_delta": -4,
       "impressions": 17,
       "cpm_krw": 12471,
       "revenue_krw": 212
@@ -68,7 +68,7 @@
     {
       "name": "세탁기 넣어도 돼?",
       "type": "전면형·배너",
-      "users": 7,
+      "users": 3,
       "users_delta": -4,
       "impressions": 20,
       "cpm_krw": 3400,
@@ -77,8 +77,8 @@
     {
       "name": "길가 식물 수집",
       "type": "보상형",
-      "users": 2,
-      "users_delta": -4,
+      "users": 5,
+      "users_delta": 3,
       "impressions": 4,
       "cpm_krw": 11750,
       "revenue_krw": 47
@@ -86,8 +86,8 @@
     {
       "name": "빈 페이지",
       "type": "전면형",
-      "users": 6,
-      "users_delta": -1,
+      "users": 4,
+      "users_delta": -2,
       "impressions": 5,
       "cpm_krw": 7200,
       "revenue_krw": 36
@@ -96,7 +96,7 @@
       "name": "여보세요",
       "type": "전면형",
       "users": 3,
-      "users_delta": -2,
+      "users_delta": 0,
       "impressions": 7,
       "cpm_krw": 3571,
       "revenue_krw": 25
@@ -104,8 +104,8 @@
     {
       "name": "인생시계",
       "type": "전면형",
-      "users": 5,
-      "users_delta": -1,
+      "users": 1,
+      "users_delta": -4,
       "impressions": 5,
       "cpm_krw": 4800,
       "revenue_krw": 24
@@ -113,7 +113,7 @@
     {
       "name": "안 피워도 돼",
       "type": "보상형·배너",
-      "users": 2,
+      "users": 0,
       "users_delta": -2,
       "impressions": 30,
       "cpm_krw": 633,
@@ -131,8 +131,8 @@
     {
       "name": "여름 옆자리 테스트",
       "type": "전면형",
-      "users": 7,
-      "users_delta": 0,
+      "users": 2,
+      "users_delta": -5,
       "impressions": 7,
       "cpm_krw": 1714,
       "revenue_krw": 12
@@ -140,44 +140,53 @@
     {
       "name": "안 마셔도 돼",
       "type": "보상형·배너",
-      "users": 2,
-      "users_delta": 0,
+      "users": 1,
+      "users_delta": -1,
       "impressions": 26,
       "cpm_krw": 423,
       "revenue_krw": 11
     },
     {
+      "name": "클럽오또",
+      "type": "보상형",
+      "users": 4,
+      "users_delta": 4,
+      "impressions": 1,
+      "cpm_krw": 7000,
+      "revenue_krw": 7
+    },
+    {
       "name": "ADHD야 나가자",
       "type": "전면형",
-      "users": 9,
-      "users_delta": -2,
+      "users": 8,
+      "users_delta": -1,
+      "impressions": 2,
+      "cpm_krw": 2000,
+      "revenue_krw": 4
+    },
+    {
+      "name": "오늘 얼마 벌었어?",
+      "type": "전면형",
+      "users": 0,
+      "users_delta": -3,
       "impressions": 2,
       "cpm_krw": 2000,
       "revenue_krw": 4
     },
     {
       "name": "오늘 뭐 입지?",
-      "type": "—",
+      "type": "전면형",
       "users": 8,
-      "users_delta": 1,
+      "users_delta": 0,
       "impressions": 3,
       "cpm_krw": 1333,
       "revenue_krw": 4
     },
     {
-      "name": "오늘 얼마 벌었어?",
-      "type": "전면형",
-      "users": 3,
-      "users_delta": 0,
-      "impressions": 2,
-      "cpm_krw": 2000,
-      "revenue_krw": 4
-    },
-    {
       "name": "빙고빙수",
       "type": "보상형",
-      "users": 6,
-      "users_delta": -2,
+      "users": 1,
+      "users_delta": -5,
       "impressions": 1,
       "cpm_krw": 0,
       "revenue_krw": 0
@@ -185,7 +194,7 @@
     {
       "name": "오늘 버려도 돼?",
       "type": "전면형·배너",
-      "users": 6,
+      "users": 4,
       "users_delta": -2,
       "impressions": 3,
       "cpm_krw": 0,
@@ -194,19 +203,28 @@
     {
       "name": "한 단어만 써도 돼",
       "type": "전면형",
+      "users": 1,
+      "users_delta": -1,
+      "impressions": 0,
+      "cpm_krw": 0,
+      "revenue_krw": 0
+    },
+    {
+      "name": "HIM엔터 사옥",
+      "type": "—",
       "users": 2,
-      "users_delta": 0,
+      "users_delta": 2,
       "impressions": 0,
       "cpm_krw": 0,
       "revenue_krw": 0
     }
   ],
   "pending_review": [],
-  "pending_review_note": "11/2(월) 회차. 21개 전부 LIVE, 전부 최신 승인 번들이 라이브(마법컴팩트 20261028-9 10/29 출시됨). 검토 중 0 · 반려 0 · 출시 클릭 0.",
+  "pending_review_note": "11/9(월) 회차. OPEN 23개 전부 최신 승인 번들이 라이브(클럽오또·HIM엔터 사옥 11/5 첫 출시). 옛 club-oddo 비게임판은 CLOSE. 검토 중 번들 0 · 반려 0 · 출시 클릭 0.",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176",
-  "impressions_since_launch": 6,
+  "impressions_since_launch": 734,
   "ad_requests_since_launch": 39,
-  "revenue_since_launch_krw": 33,
+  "revenue_since_launch_krw": 5990,
   "users_metric": "metrics.json users30(30일 일별 사용자 합, 2026-10-03~11-01). 증감은 10/26 대비.",
   "new_users_today": null,
   "ad_requests_total": null,
@@ -219,5 +237,11 @@
   "settlement_confirmed_krw": 3903,
   "settlement_note": "8월분 78원 9/30 지급 완료 · 9월분 3,825원(광고 3,478원+VAT 347원, 수수료 0원) 10/30 지급 완료(COMPLETED). 누적 확정 3,903원. 10월분 정산 요약 아직 미공개.",
   "users_basis": "2026-10-12부터 toss-metrics/metrics.json(콘솔 MCP)의 30일 일별 사용자 합 — 콘솔 홈 「총 유저」와 정의가 달라 지난주(6,379)와 증감 비교 불가",
-  "users_note": "2026-10-12~ total_users·apps[].users 는 toss-metrics/metrics.json 의 users30(30일 일별 사용자 합). 콘솔 홈 「총 유저」와 정의가 다르다."
+  "users_note": "2026-10-12~ total_users·apps[].users 는 toss-metrics/metrics.json 의 users30(30일 일별 사용자 합). 콘솔 홈 「총 유저」와 정의가 다르다.",
+  "pending_settlement": {
+    "month": "2026-10",
+    "total_krw": 1398,
+    "expected_date": "2026-11-30",
+    "status": "PENDING"
+  }
 }
