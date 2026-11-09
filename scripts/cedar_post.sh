@@ -203,8 +203,13 @@ for i in $(seq 1 180); do
     [ "$said" = "0" ] && { echo "  ⏸ CAPTCHA — 사람이 풀 때까지 대기 (최대 15분)"; said=1; }
     continue
   fi
+  # eval 이 타임아웃(빈 값)이면 「안 바쁨」으로 치지 않는다 — 캡챠가 떠 있는데 「해결됨」으로 빠져나갈 수 있다
+  [ "$busy" = "n" ] || continue
   [ "$said" = "1" ] && { echo "  ▶ CAPTCHA 해결됨"; sleep 6; break; }
 done
+if [ "$said" = "1" ] && [ "$busy" = "y" ]; then
+  echo "  ⏸ CAPTCHA 15분 안에 안 풀림 — 편집기 탭은 그대로 둔다(지금 풀면 저장될 수 있음). posts.json 으로 직접 확인할 것"
+fi
 
 # 5) 검증 — 발행 버튼을 눌러도 글이 안 만들어지는 경우가 있다(하루 한도 등). 반드시 확인한다.
 # ⚠️ ?searchKeyword= 검색은 방금 만든 글을 못 찾아 오판하게 만든다. 목록 첫 페이지를 직접 읽을 것.
