@@ -109,11 +109,18 @@ IMG_NAME="$(printf '%s' "$TITLE" | sed 's#/#-#g; s#[?:*"<>|]##g')"
 IMG_PATH="$ROOT/assets/illustrations/${IMG_NAME}.png"
 if [ -f "$IMG_PATH" ]; then
   # 툴바 "첨부" → 드롭다운 "사진" 으로 만든 input 이라야 업로드 핸들러가 걸린다
-  "$A" eval "$TAB" '(()=>{const b=[...document.querySelectorAll(".mce-btn")].find(e=>e.getAttribute("aria-label")==="첨부"&&e.offsetParent!==null);(b.querySelector("button")||b).click();return 1})()' >/dev/null 2>&1
-  sleep 2
-  "$A" eval "$TAB" '(()=>{const it=[...document.querySelectorAll(".mce-menu-item")].find(e=>(e.innerText||"").trim()==="사진"&&e.offsetParent!==null);if(it)it.click();return 1})()' >/dev/null 2>&1
-  sleep 3
-  "$A" file "$TAB" 'input[type=file][accept^="image"]' "$IMG_PATH" >/dev/null 2>&1
+  # 메뉴가 늦게 떠서 input 이 아직 없으면 `file` 이 실패하고 set -e 로 조용히 죽었다(2026-11-09, 4-2·6편) → 3번까지 다시 연다
+  attached=0
+  for _try in 1 2 3; do
+    "$A" eval "$TAB" '(()=>{const b=[...document.querySelectorAll(".mce-btn")].find(e=>e.getAttribute("aria-label")==="첨부"&&e.offsetParent!==null);(b.querySelector("button")||b).click();return 1})()' >/dev/null 2>&1 || true
+    sleep 2
+    "$A" eval "$TAB" '(()=>{const it=[...document.querySelectorAll(".mce-menu-item")].find(e=>(e.innerText||"").trim()==="사진"&&e.offsetParent!==null);if(it)it.click();return 1})()' >/dev/null 2>&1 || true
+    sleep 3
+    if "$A" file "$TAB" 'input[type=file][accept^="image"]' "$IMG_PATH" >/dev/null 2>&1; then attached=1; break; fi
+    "$A" key "$TAB" Escape >/dev/null 2>&1 || true
+    sleep 3
+  done
+  [ "$attached" = "1" ] || { echo "  ✗ 삽화 파일을 못 물렸습니다 — 발행하지 않고 중단"; exit 1; }
   up=0
   for _ in $(seq 1 12); do
     sleep 4
