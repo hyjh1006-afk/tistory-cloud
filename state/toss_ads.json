@@ -222,9 +222,9 @@
   "pending_review": [],
   "pending_review_note": "11/9(월) 회차. OPEN 23개 전부 최신 승인 번들이 라이브(클럽오또·HIM엔터 사옥 11/5 첫 출시). 옛 club-oddo 비게임판은 CLOSE. 검토 중 번들 0 · 반려 0 · 출시 클릭 0.",
   "dashboard_url": "https://claude.ai/code/artifact/0181bc18-0471-4271-91c4-3ad2ccd85176",
-  "impressions_since_launch": 734,
+  "impressions_since_launch": 6,
   "ad_requests_since_launch": 39,
-  "revenue_since_launch_krw": 5990,
+  "revenue_since_launch_krw": 33,
   "users_metric": "metrics.json users30(30일 일별 사용자 합, 2026-10-03~11-01). 증감은 10/26 대비.",
   "new_users_today": null,
   "ad_requests_total": null,
@@ -232,10 +232,10 @@
   "check_cadence": "주 1회 (월요일 19:07)",
   "next_deadlines": [
     "2026-11-21 — 유저 피해 대응 정책 시행(공지 54119)",
-    "2026-11-30 — 10월 광고 정산 지급 예정(추정)"
+    "2026-11-30 — 10월 광고 정산 1,398원 지급 예정"
   ],
   "settlement_confirmed_krw": 3903,
-  "settlement_note": "8월분 78원 9/30 지급 완료 · 9월분 3,825원(광고 3,478원+VAT 347원, 수수료 0원) 10/30 지급 완료(COMPLETED). 누적 확정 3,903원. 10월분 정산 요약 아직 미공개.",
+  "settlement_note": "8월분 78원 9/30 지급 완료 · 9월분 3,825원(수수료 0원) 10/30 지급 완료. 누적 확정 3,903원. 10월분 1,398원(광고 1,271원+VAT 127원, 수수료 0원) 11/30 지급 예정(PENDING).",
   "users_basis": "2026-10-12부터 toss-metrics/metrics.json(콘솔 MCP)의 30일 일별 사용자 합 — 콘솔 홈 「총 유저」와 정의가 달라 지난주(6,379)와 증감 비교 불가",
   "users_note": "2026-10-12~ total_users·apps[].users 는 toss-metrics/metrics.json 의 users30(30일 일별 사용자 합). 콘솔 홈 「총 유저」와 정의가 다르다.",
   "pending_settlement": {
