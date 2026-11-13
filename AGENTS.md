@@ -16,6 +16,10 @@
 - `github_state.py`·`state/`: 공유 상태(괴담 스크립트가 쓴다 — HQ 와 함께 지우지 말 것). `state/toss_ads.json` 은 수익화랩이 매일 읽는다.
 - `scripts/`: 생성·연재 도구, `src/`: 생성 로직, `cedar/`: 연재 자료, `output/`: 생성물.
 - 인증 정보는 환경변수·로컬 비밀 파일로 관리한다. 값은 기록하지 않는다(코드의 `st.secrets` 폴백은 HQ 시절 잔재로, 없으면 조용히 건너뛴다).
+## 업로드 뒤 용량 정리 (항상 — 2026-11-13 대표님)
+- 블로그에 올라갔으면 **삽화(`assets/illustrations/`)·번역 원고(`cedar/<ep>.txt`·`*_src/`)·`state/local_outputs/`·GitHub 대기 목록(`state/outputs/`)은 지운다. 백업 안 남긴다.**
+- `cedar_post.sh` 는 발행 확인 뒤 자기 편 것을 알아서 지운다(남기려면 `CEDAR_KEEP=1`). 괴담 자동발행은 `publish_waiting.sh` → `cleanup_posted.sh` 가 한다.
+- 손으로 올렸거나 정리가 빠졌으면: 블로그에 있는지 posts.json 으로 확인 → 위 파일 삭제 + `scripts/list_waiting.sh | cut -f1 | xargs scripts/mark_posted.sh`(zsh 는 `$names` 를 안 쪼갠다 — xargs 로).
 ## 함정
 - README의 생성 UI·상태 분리 설명은 과거 안내다. 최신 운영은 `WORKLOG.md`를 따른다.
 - 티스토리 임시저장은 블로그당 하나라 동시 편집이 서로 덮어쓴다. 편집 세션을 겹치지 않는다.

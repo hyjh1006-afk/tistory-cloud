@@ -232,6 +232,14 @@ found=$("$A" eval '~.*manage/posts/$' \
   2>/dev/null || echo unknown)
 if [ "$found" = "true" ]; then
   echo "  ✓ 발행 확인됨 — $WANT_DATE $HOUR:$MIN"
+  # 6) 정리 — 블로그에 올라갔으면 삽화·원고·로컬 사본·대기 목록은 필요 없다. 백업도 안 남긴다.
+  #    (2026-11-13 대표님: 「업로드 끝나면 항상 용량 정리, 백업 필요없어」) 남기고 싶을 때만 CEDAR_KEEP=1.
+  if [ "${CEDAR_KEEP:-0}" != "1" ]; then
+    rm -f "$IMG_PATH" "$ROOT/state/local_outputs/cedar_${EP}.json" "$ROOT/cedar/${EP}.txt"
+    "$ROOT/scripts/mark_posted.sh" "cedar_${EP}.json" >/dev/null 2>&1 \
+      || echo "  (대기 목록 정리 실패 — 나중에 scripts/mark_posted.sh cedar_${EP}.json)"
+    echo "  🧹 정리: 삽화·원고·대기 사본 삭제"
+  fi
 else
   echo "  ✗ 발행됐다는 증거가 없습니다 (목록에 제목 없음: $found)"; exit 1
 fi
