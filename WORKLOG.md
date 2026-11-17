@@ -416,4 +416,5 @@
   - 봇 설정 전·텔레그램 실패면 relay 가 rc 4 로 바로 빠져 **예전 동작과 똑같다**.
 - [사실] DKAPTCHA 는 교차 출처 iframe 이라 `evaluate` 는 막히지만 **Aside repl 의 `frameLocator(IFR)` 로는 fill·inputValue·click·innerText 가 된다**(httpbin 교차 출처 iframe·data: iframe 으로 실측). iframe 요소 `locator.screenshot()` 도 된다.
 - [시험] `scripts/chacap.sh selftest` — 텔레그램 없이 교차 출처 가짜 캡챠 페이지로 캡처·틀린 답 남음·맞는 답 사라짐 3가지를 본다(토큰 0). 실제 DKAPTCHA 의 입력칸·확인 버튼 선택자는 **아직 실물로 못 봤다** — 첫 실전 로그(`logs/chacap_*.log` 의 「문구·입력칸 N개·입력 결과」)로 확인할 것.
+- [연결 완료] 봇 @oddo_chacap_bot, 토큰·채팅 id 키체인 저장. 실측: `ping` 왕복 성공(20:08) · 가짜 캡챠로 `relay` 전 과정(사진 전송→대표님 답장 7→입력→사라짐) rc 0(20:09). 남은 것: 실제 DKAPTCHA 첫 실전 로그 확인.
 - [함정] repl 의 `page.close()` 는 attach 한 탭을 닫지 않고 떼기만 한다 → 탭 정리는 `aside.sh close/closeend`. 같은 URL 시험 탭이 남아 있으면 그쪽에 붙어 조용히 틀린 결과가 난다(selftest 가 시작 때도 정리하는 이유).
