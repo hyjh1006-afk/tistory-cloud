@@ -403,3 +403,12 @@
 - [정리] 대표님 「올라갔으면 필요없다, 백업 필요없어, 앞으로도 업로드 끝나면 항상」 → 삽화 23장(필 밀·데이비드)·`cedar/*.txt` 72편(시더빌·왼쪽/오른쪽 게임·뿔·필 밀·데이비드)·`*_src`·`state/local_outputs`·logs 의 png/백업 json 삭제, GitHub 대기 목록 72편 비움(전부 블로그에 있음 확인 후). 172→약 119MB.
 - [자동 정리] `cedar_post.sh` 가 발행 확인 뒤 그 편의 삽화·원고·로컬 사본·대기 목록을 지운다(`CEDAR_KEEP=1` 이면 남김). `cedar/*.txt` 는 이제 gitignore.
 - [함정] `mark_posted.sh $names` 는 zsh 에서 한 덩어리로 넘어가 1건도 안 지운다 → `xargs` 로 넘길 것.
+
+## 2026-11-17
+- [CHACAP 신설] 대표님 지시로 캡챠 **중계** 도구 `scripts/chacap.sh`(본체 `chacap.py`). 캡챠가 뜨면 iframe 만 찍어 대표님 **텔레그램 봇**으로 보내고, 대표님이 답장한 글자를 그대로 입력칸에 넣고 확인 → 캡챠가 사라졌는지 본다. 틀리면 새 화면을 다시 보냄(3회), 「새로」=다른 문제, 「패스」=건너뜀, 15분 무응답이면 기존처럼 탭 열어 두고 rc 7.
+  - ⚠️ **답을 추측·인식하는 코드는 없고 넣지 않는다**(캡챠를 기계가 푸는 건 하지 않는 일 — 위 규칙 그대로). 대표님이 「너가 풀어」 해도 이 선은 그대로다(11/17 대표님께 설명 완료).
+  - 연결: `publish_waiting.py` 캡챠 시 `chacap relay --tid` → 통과하면 편집기 이동 대기 → `verify_saved` 로 판정(못 찾으면 5). `cedar_post.sh` 대기 루프 첫 감지 때 `chacap relay --match /manage/newpost/`(실패해도 기존 대기 그대로).
+  - 봇 설정 전·텔레그램 실패면 relay 가 rc 4 로 바로 빠져 **예전 동작과 똑같다**.
+- [사실] DKAPTCHA 는 교차 출처 iframe 이라 `evaluate` 는 막히지만 **Aside repl 의 `frameLocator(IFR)` 로는 fill·inputValue·click·innerText 가 된다**(httpbin 교차 출처 iframe·data: iframe 으로 실측). iframe 요소 `locator.screenshot()` 도 된다.
+- [시험] `scripts/chacap.sh selftest` — 텔레그램 없이 교차 출처 가짜 캡챠 페이지로 캡처·틀린 답 남음·맞는 답 사라짐 3가지를 본다(토큰 0). 실제 DKAPTCHA 의 입력칸·확인 버튼 선택자는 **아직 실물로 못 봤다** — 첫 실전 로그(`logs/chacap_*.log` 의 「문구·입력칸 N개·입력 결과」)로 확인할 것.
+- [함정] repl 의 `page.close()` 는 attach 한 탭을 닫지 않고 떼기만 한다 → 탭 정리는 `aside.sh close/closeend`. 같은 URL 시험 탭이 남아 있으면 그쪽에 붙어 조용히 틀린 결과가 난다(selftest 가 시작 때도 정리하는 이유).

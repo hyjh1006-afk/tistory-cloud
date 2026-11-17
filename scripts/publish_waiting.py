@@ -494,6 +494,34 @@ return {{state, pre, last}};
     return repl(body, timeout=170)
 
 
+def chacap_relay(tid: str, title: str) -> int:
+    """scripts/chacap.py relay — 0 이면 대표님 답으로 캡챠 통과. 실패해도 예외 없이 rc 만 돌려준다."""
+    log("  ⏸ CAPTCHA — CHACAP 으로 대표님 텔레그램에 중계")
+    try:
+        p = subprocess.run([str(ROOT / "scripts" / "chacap.sh"), "relay", "--tid", tid, "--label", f"괴담 「{title[:30]}」"],
+                           capture_output=True, text=True, timeout=25 * 60)
+    except subprocess.TimeoutExpired:
+        log("  · CHACAP 시간 초과")
+        return 3
+    for line in (p.stdout or "").strip().splitlines()[-8:]:
+        log("  · " + line)
+    return p.returncode
+
+
+def wait_left_editor(tid: str, secs: int = 45) -> bool:
+    body = attach_js(tid) + f"""
+for (let i = 0; i < {secs}; i++) {{
+  if (!/\\/manage\\/newpost/.test(P.url())) return {{left: true, url: P.url()}};
+  await sleep(1000);
+}}
+return {{left: false}};
+"""
+    try:
+        return bool(repl(body, timeout=secs + 40)[0].get("left"))
+    except Stop:
+        return False
+
+
 def verify_saved(tid: str, it: dict, cat_id) -> dict:
     d = {"title": it["title"], "cat": it["cat"], "catId": cat_id, "nLinks": len(it["links"])}
     body = attach_js(tid) + f"""
@@ -664,7 +692,15 @@ def run(args) -> int:
                 raise Stop(GATE, "클릭 직전 재확인 실패 — 저장 안 함")
             if res.get("state") == "captcha":
                 keep_tab = True
-                raise Stop(CAPTCHA, f"CAPTCHA — Aside 편집기 탭에 원고 그대로 둠: {it['title']}")
+                # CHACAP: 캡챠 화면을 대표님 텔레그램으로 보내고, 답장 글자를 입력칸에 옮겨 적는다(스스로 풀지 않음).
+                lock.touch()
+                rc = chacap_relay(tid, it["title"])
+                lock.touch()
+                if rc != 0:
+                    raise Stop(CAPTCHA, f"CAPTCHA — 중계 rc={rc}, Aside 편집기 탭에 원고 그대로 둠: {it['title']}")
+                nav = wait_left_editor(tid)
+                log(f"  CHACAP 통과 → 편집기 이동 {'확인' if nav else '안 보임 — 목록으로 확인'}")
+                res["state"] = "navigated"   # 이동이 안 보여도 아래 verify_saved 가 목록으로 판정한다(못 찾으면 5)
             if res.get("state") != "navigated":
                 keep_tab = True
                 raise Stop(UNVERIFIED, f"저장 결과 불명({res.get('state')}, {str(res.get('last'))[:160]}) — 재시도 금지, 사람 확인")
@@ -679,6 +715,7 @@ def run(args) -> int:
                 raise Stop(UNVERIFIED, f"저장했지만 확인 실패: {it['title']} ({json.dumps(v, ensure_ascii=False)[:200]}) — 재시도 금지")
             mark_done(it, dry)
             clicked = False
+            keep_tab = False   # CHACAP 으로 통과해 저장까지 확인됐으면 탭을 남길 이유가 없다
             summary.append({"key": it["key"], "result": "saved", "id": v["id"], "url": v.get("permalink"),
                             "title": it["title"], "sources": list(zip(it["authors"], it["links"]))})
             log(f"  ✓ {VIS['btn']} 확인: {v.get('permalink')}")

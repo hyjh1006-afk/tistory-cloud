@@ -207,7 +207,11 @@ for i in $(seq 1 180); do
   [ "${alive:-0}" = "0" ] && break          # 편집기가 닫혔다 = 저장 완료
   busy=$("$A" eval "$TAB" '(()=>[...document.querySelectorAll("button")].some(b=>(b.innerText||"").trim()==="저장중")?"y":"n")()' 2>/dev/null | tr -d '"' || true)
   if [ "$busy" = "y" ]; then
-    [ "$said" = "0" ] && { echo "  ⏸ CAPTCHA — 사람이 풀 때까지 대기 (최대 15분)"; said=1; }
+    if [ "$said" = "0" ]; then
+      echo "  ⏸ CAPTCHA — CHACAP 으로 대표님 텔레그램에 중계 (최대 15분)"; said=1
+      # 화면을 보내고 대표님 답장 글자를 입력칸에 옮겨 적는다 — 스스로 풀지 않는다. 실패해도 아래 대기는 그대로 돈다.
+      "$ROOT/scripts/chacap.sh" relay --match '/manage/newpost/' --label "연재 $EP" 2>&1 | tail -4 | sed 's/^/    /' || true
+    fi
     continue
   fi
   # eval 이 타임아웃(빈 값)이면 「안 바쁨」으로 치지 않는다 — 캡챠가 떠 있는데 「해결됨」으로 빠져나갈 수 있다
