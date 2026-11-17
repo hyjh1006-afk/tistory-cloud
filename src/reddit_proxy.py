@@ -46,7 +46,8 @@ def _try_allorigins(
                     if logger:
                         logger.info("allorigins 프록시 수집 성공: %s (%s건)", url, len(batch))
                     return batch
-            except (requests.RequestException, ValueError):
+            # XML ParseError 는 ValueError 가 아니라 SyntaxError 계열이다 — 못 잡으면 rss2json 폴백까지 죽는다
+            except (requests.RequestException, ValueError, SyntaxError):
                 continue
     return []
 

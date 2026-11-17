@@ -17,16 +17,15 @@ from .reddit_rss import fetch_via_rss, is_blocked_response, parse_rss_posts
 
 def default_rss_urls(subreddit: str, sort: str = "new") -> list[str]:
     # limit=100: 한 요청으로 최대한 깊게 받아 사용된 글을 걸러도 10개가 남게 한다
+    # 2026-11 부터 old.reddit.com RSS 는 비로그인 요청에 403/302 를 준다 → www 를 먼저.
+    # (old 를 앞에 두면 두 번 막혀 "IP 차단"으로 오판하고 www 를 시도도 안 한다 — 단편 수집이 이렇게 죽었다)
     urls = [
-        f"https://old.reddit.com/r/{subreddit}/new/.rss?limit=100",
         f"https://www.reddit.com/r/{subreddit}/new/.rss?limit=100",
-        f"https://old.reddit.com/r/{subreddit}/top/.rss?t=day&limit=100",
+        f"https://www.reddit.com/r/{subreddit}/top/.rss?t=day&limit=100",
+        f"https://old.reddit.com/r/{subreddit}/new/.rss?limit=100",
     ]
     if sort == "hot":
-        urls.insert(
-            0,
-            f"https://old.reddit.com/r/{subreddit}/hot/.rss?limit=100",
-        )
+        urls.insert(0, f"https://www.reddit.com/r/{subreddit}/hot/.rss?limit=100")
     return urls
 
 
@@ -167,7 +166,8 @@ def collect_reddit_posts(
                     break
             except Exception as exc:
                 # 클라우드에서는 긴 대기 없이 바로 다음 경로/프록시로 넘어간다
-                if _block_status(exc) is not None:
+                # old.reddit 의 403 은 상시 차단이라 IP 차단 신호로 세지 않는다
+                if _block_status(exc) is not None and "old.reddit.com" not in url:
                     blocked_count += 1
                 rss_errors.append(f"{url}: {exc}")
                 if logger:
