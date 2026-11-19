@@ -418,3 +418,9 @@
 - [시험] `scripts/chacap.sh selftest` — 텔레그램 없이 교차 출처 가짜 캡챠 페이지로 캡처·틀린 답 남음·맞는 답 사라짐 3가지를 본다(토큰 0). 실제 DKAPTCHA 의 입력칸·확인 버튼 선택자는 **아직 실물로 못 봤다** — 첫 실전 로그(`logs/chacap_*.log` 의 「문구·입력칸 N개·입력 결과」)로 확인할 것.
 - [연결 완료] 봇 @oddo_chacap_bot, 토큰·채팅 id 키체인 저장. 실측: `ping` 왕복 성공(20:08) · 가짜 캡챠로 `relay` 전 과정(사진 전송→대표님 답장 7→입력→사라짐) rc 0(20:09). 남은 것: 실제 DKAPTCHA 첫 실전 로그 확인.
 - [함정] repl 의 `page.close()` 는 attach 한 탭을 닫지 않고 떼기만 한다 → 탭 정리는 `aside.sh close/closeend`. 같은 URL 시험 탭이 남아 있으면 그쪽에 붙어 조용히 틀린 결과가 난다(selftest 가 시작 때도 정리하는 이유).
+
+## 2026-11-19
+- [새 카테고리] 「시사 논평」(id 865693, 주제 시사›사회) 신설 — 첫 글 /250 공개 발행(대표님 생각을 담은 논평, 삽화 5장 codex-image). 자살 관련 글은 자살예방 보도준칙 4.0(블로그에도 적용)대로: 제목·본문에 '자살' 단정 안 함(수사 확정 전), 방법·장소·유서 내용 안 씀, 끝에 109·마들랜 안내.
+- [함정] 카테고리 관리 「카테고리 추가」는 locator click 이 안 먹는다 → `label.lab_add` 의 좌표를 구해 `page.mouse.click`. 주제 드롭다운도 같은 식(마우스 클릭).
+- [방법] 이미지 여러 장 글: 본문에 `<p>[[IMGn]]</p>` 자리표시 → 그 문단에 커서를 두고 툴바 첨부→사진 → `setInputFiles`(파일은 Aside 세션 폴더로 복사해 파일명만) → 올라온 figure(img data-filename)로 자리표시를 replaceWith. 5장 모두 한 번에 성공.
+- [CHACAP] 공개 발행 중 캡챠 → `scripts/chacap.sh relay --match 'tester188\.tistory\.com/manage/newpost/$'` 로 대표님 텔레그램 중계, 2회 답장 뒤 통과(rc 0). 올린 뒤 원고·삽화는 규칙대로 삭제.
