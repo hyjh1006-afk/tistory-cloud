@@ -211,7 +211,9 @@ const typed = await inp.inputValue().catch(() => null);
 if (typed !== ANS) return {{filled: false, typed}};
 // 11/20 3차 실측: DKAPTCHA 는 jQuery keyup 이 와야 「답변 제출」 disabled 를 푼다. fill·한글 입력은 keyup 을 안 낸다
 // → 버튼이 꺼진 채 클릭 실패 → Enter(무효) → 맞는 답도 「통과 안 됨」. keyup·change 를 직접 쏘고 버튼이 켜질 때까지 본다.
-for (const ev of ['keyup', 'change']) {{ try {{ await inp.dispatchEvent(ev); }} catch (e) {{}} }}
+// 4차 실측: Playwright dispatchEvent('keyup') 은 keyCode 가 없어 안 먹고, 진짜 키 입력(End)이 먹는다 — 커서만 끝으로 옮기는 무해한 키
+try {{ await inp.press('End'); }} catch (e) {{}}
+for (const ev of ['change']) {{ try {{ await inp.dispatchEvent(ev); }} catch (e) {{}} }}
 const subBtn = fl.locator('#btn_dkaptcha_submit, .btn_submit_dkaptcha').first();
 let enabled = null;
 if (await subBtn.count()) {{ for (let i = 0; i < 12; i++) {{ enabled = await subBtn.isEnabled().catch(() => null); if (enabled) break; await sleep(250); }} }}
@@ -366,7 +368,7 @@ HARNESS_FRAME = (
     " <button type=button id=btn_dkaptcha_submit class=btn_submit_dkaptcha>답변 제출</button>"
     # 실물처럼: 「답변 제출」은 disabled 로 시작하고 keyup 이 와야 켜진다(11/20 3차 실측)
     "<script>const SB=document.getElementById('btn_dkaptcha_submit');SB.disabled=true;"
-    "document.getElementById('inpDkaptcha').addEventListener('keyup',()=>{SB.disabled=!document.getElementById('inpDkaptcha').value});"
+    "document.getElementById('inpDkaptcha').addEventListener('keyup',e=>{if(!e.keyCode)return;SB.disabled=!document.getElementById('inpDkaptcha').value});"
     "SB.onclick=()=>{"
     "if(document.querySelector('input').value==='7')parent.postMessage('chacap-ok','*');"
     "else document.getElementById('q').textContent='틀렸습니다 — 7 을 넣으세요'}</script>"
