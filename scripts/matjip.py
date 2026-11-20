@@ -18,6 +18,8 @@
   collect [--wait 분]    텔레그램 답을 모은다(답장 연결 → 해당 방문, 아니면 질문 뒤 온 일반 메시지). 받아 둔 답은 visit.json 에.
                          --wait 이면 첫 답이 올 때까지 기다리고, 답이 오면 2분 더 조용할 때까지 이어 받는다.
   export <id> <번호...>  고른 사진의 원본을 사진 앱에서 받아 1400px JPEG 로 줄이고 위치 등 메타데이터를 지운다 → DATA/visits/<id>/img/
+  near <id> [키워드...]  사진 위치를 지도 가운데 두고 카카오맵 검색(기본 「음식점」) — 가게 이름을 위치로 찾는다(대표님 11/20 「식당 이름은 사진 위치 보고 파악해서」)
+  map <id> --label 이름  그 위치의 작은 지도 그림(OpenStreetMap, 출처 표기) → img/<id>_map.jpg
   posted <id> <주소>     올린 뒤 표시 + 사진 원본·내보낸 사본 삭제(대표님 11/13 「업로드 끝나면 용량 정리, 백업 없이」)
 """
 from __future__ import annotations
@@ -385,6 +387,108 @@ def cmd_export(a) -> int:
     return 0
 
 
+# ── 가게 찾기·위치 지도 ──────────────────────────────────────────────────
+NEAR_JS = r"""
+const A = __ARGS__;
+let t = (await listBrowserTabs()).find(x => /map\.kakao\.com/.test(x.url));
+const P = t ? await attachBrowserTab(t.targetId) : await openTab('https://map.kakao.com/');
+const conv = await P.evaluate(async ([lat, lng]) => { const r = await fetch(`/link/map/x,${lat},${lng}`); const m = r.url.match(/urlX=([\d.]+)&urlY=([\d.]+)/); return m ? [m[1], m[2]] : null; }, [A.lat, A.lng]);
+if (!conv) return {error: 'coord'};
+await P.goto(`https://map.kakao.com/?urlX=${conv[0]}&urlY=${conv[1]}&urlLevel=2`);
+await sleep(2500);
+const out = {};
+for (const q of A.kws) {
+  await P.fill('#search\\.keyword\\.query', q);
+  await P.press('#search\\.keyword\\.query', 'Enter');
+  await sleep(2200);
+  out[q] = await P.evaluate(() => [...document.querySelectorAll('#info\\.search\\.place\\.list > li')].slice(0, 8).map(li => ({
+    name: li.querySelector('.link_name')?.textContent.trim(),
+    cate: li.querySelector('.subcategory')?.textContent.trim(),
+    addr: li.querySelector('.addr p')?.textContent.trim(),
+    hours: li.querySelector('.openhour')?.textContent.replace(/\s+/g, ' ').trim(),
+    url: li.querySelector('a.moreview')?.href || null })));
+}
+return out;
+"""
+
+
+def cmd_near(a) -> int:
+    """사진 위치(방문 좌표)를 지도 가운데 두고 카카오맵 검색 — 가까운 가게가 먼저 나온다(11/20 실측: 「음식점」 검색이 반경 수십 m 가게부터)."""
+    st = load_state()
+    v = st["visits"][a.id]
+    kws = a.kws or ["음식점"]
+    code = ("const __o = await (async () => {" + NEAR_JS.replace("__ARGS__", json.dumps({"lat": v["lat"], "lng": v["lon"], "kws": kws}, ensure_ascii=False))
+            + "})().catch(e => ({error: String(e).slice(0, 300)})); console.log('RESULT=' + JSON.stringify(__o));")
+    p = subprocess.run([str(Path.home() / ".local/bin/aside"), "repl", code], cwd="/tmp", capture_output=True, text=True, timeout=150)
+    line = next((l for l in p.stdout.splitlines() if l.startswith("RESULT=")), None)
+    if not line:
+        print("✗ aside repl 결과 없음: " + (p.stdout + p.stderr)[-300:])
+        return 2
+    res = json.loads(line[7:])
+    if "error" in res:
+        print("✗ " + res["error"])
+        return 2
+    for q, items in res.items():
+        print(f"== {q}")
+        for it in items:
+            print(f"  {it['name']} | {it['cate']} | {it['addr']} | {it.get('hours') or '-'} | {it.get('url') or '-'}")
+    return 0
+
+
+def cmd_map(a) -> int:
+    """방문 좌표를 가운데 둔 작은 위치 지도(OpenStreetMap 타일, 출처 표기 포함) → visits/<id>/img/<id>_map.jpg"""
+    from io import BytesIO
+    import urllib.request
+    from PIL import Image, ImageDraw
+    st = load_state()
+    v = st["visits"][a.id]
+    lat, lon, z = round(v["lat"], 4), round(v["lon"], 4), a.zoom
+    n = 2 ** z
+    fx = (lon + 180) / 360 * n
+    fy = (1 - math.log(math.tan(math.radians(lat)) + 1 / math.cos(math.radians(lat))) / math.pi) / 2 * n
+    W, H = 900, 560
+    cx, cy = fx * 256, fy * 256
+    x0, y0 = int(cx - W / 2), int(cy - H / 2)
+    img = Image.new("RGB", (W, H), "white")
+    for tx in range(x0 // 256, (x0 + W) // 256 + 1):
+        for ty in range(y0 // 256, (y0 + H) // 256 + 1):
+            req = urllib.request.Request(f"https://tile.openstreetmap.org/{z}/{tx}/{ty}.png",
+                                         headers={"User-Agent": "ODDO-blog-staticmap/1.0 (+https://oddoapps.com)"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                tile = Image.open(BytesIO(r.read())).convert("RGB")
+            img.paste(tile, (tx * 256 - x0, ty * 256 - y0))
+            time.sleep(0.3)
+    d = ImageDraw.Draw(img)
+    px, py = W // 2, H // 2
+    d.ellipse([px - 15, py - 44, px + 15, py - 14], fill=(231, 76, 60), outline="white", width=3)
+    d.polygon([(px - 11, py - 22), (px + 11, py - 22), (px, py)], fill=(231, 76, 60))
+    d.ellipse([px - 5, py - 34, px + 5, py - 24], fill="white")
+    if a.label:
+        try:
+            from PIL import ImageFont
+            f = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 26)
+        except Exception:
+            f = None
+        tw = d.textlength(a.label, font=f) if f else len(a.label) * 8
+        d.rounded_rectangle([px - tw / 2 - 12, py - 92, px + tw / 2 + 12, py - 54], radius=10, fill="white", outline=(231, 76, 60), width=2)
+        d.text((px - tw / 2, py - 88), a.label, fill=(40, 40, 40), font=f)
+    att = "© OpenStreetMap contributors"
+    try:
+        from PIL import ImageFont
+        fa = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 15)
+    except Exception:
+        fa = None
+    aw = d.textlength(att, font=fa) if fa else len(att) * 7
+    d.rectangle([W - aw - 16, H - 24, W, H], fill=(255, 255, 255))
+    d.text((W - aw - 8, H - 21), att, fill=(60, 60, 60), font=fa)
+    out = vdir(a.id) / "img"
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / f"{a.id}_map.jpg"
+    img.save(path, "JPEG", quality=88)
+    print("IMG\t" + str(path))
+    return 0
+
+
 def cmd_status(_a) -> int:
     st = load_state()
     print(f"CHECKPOINT={st['checkpoint']}")
@@ -424,6 +528,8 @@ def main() -> int:
     s = sub.add_parser("collect"); s.add_argument("--wait", type=float, default=0); s.set_defaults(f=cmd_collect)
     s = sub.add_parser("export"); s.add_argument("id"); s.add_argument("nums", type=int, nargs="+"); s.set_defaults(f=cmd_export)
     s = sub.add_parser("posted"); s.add_argument("id"); s.add_argument("url"); s.set_defaults(f=cmd_posted)
+    s = sub.add_parser("near"); s.add_argument("id"); s.add_argument("kws", nargs="*"); s.set_defaults(f=cmd_near)
+    s = sub.add_parser("map"); s.add_argument("id"); s.add_argument("--label", default=""); s.add_argument("--zoom", type=int, default=17); s.set_defaults(f=cmd_map)
     a = ap.parse_args()
     return a.f(a)
 

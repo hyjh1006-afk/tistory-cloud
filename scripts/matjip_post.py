@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """맛집 후기 1편을 티스토리 「맛집」 카테고리에 공개 발행한다 (Aside repl). 진입점 scripts/matjip_post.sh.
 
-입력 JSON: {"title": "...", "html": "<p>…</p><p>[[IMG1]]</p>…", "images": ["/abs/1.jpg", ...], "category": "맛집"}
+입력 JSON: {"title": "...", "html": "<p>…</p><p>[[IMG1]]</p>…<p>[[PLACE]]</p>", "images": ["/abs/1.jpg", ...], "category": "맛집",
+           "place": {"query": "리샨 여의도점", "match": "리샨"}}   ← place 는 선택. [[PLACE]] 자리에 툴바 「장소」 카드(카카오맵 연결)
   - 사진 자리는 본문에 <p>[[IMGn]]</p> 로 둔다(n 은 images 의 1부터). 사진은 matjip.sh export 가 만든 것(위치 정보 지운 JPEG).
   - "at": "YYYY-MM-DD HH:MM" 를 넣으면 예약 발행(publish_waiting 과 같은 방식).
 
@@ -138,6 +139,45 @@ return await P.evaluate(async (A) => {{
     return pw.repl(body, timeout=120)[0]
 
 
+def place_card(tid: str, query: str, match: str) -> dict:
+    """[[PLACE]] 문단 자리에 툴바 「장소」 카드(가게 이름·주소, 카카오맵 연결)를 넣는다 — 11/20 실측: figure[data-ke-type=location]."""
+    body = pw.attach_js(tid) + f"""
+const A = {json.dumps({"q": query, "m": match}, ensure_ascii=False)};
+const pre = await P.evaluate(() => {{
+  const ed = tinymce.get('editor-tistory');
+  const h = [...ed.getBody().querySelectorAll('p')].find(p => p.textContent.trim() === '[[PLACE]]');
+  if (!h) return {{ok:false, why:'[[PLACE]] 자리표시 없음'}};
+  ed.focus(); ed.selection.select(h, true); ed.selection.collapse(false);
+  const b = [...document.querySelectorAll('.mce-btn')].find(e => e.getAttribute('aria-label') === '장소' && e.offsetParent !== null);
+  if (!b) return {{ok:false, why:'장소 버튼 없음'}};
+  (b.querySelector('button') || b).click();
+  return {{ok:true}};
+}});
+if (!pre.ok) return pre;
+const box = P.locator('input[placeholder="장소명을 입력해주세요."]').first();
+await box.waitFor({{timeout: 8000}});
+await box.fill(A.q);
+await box.press('Enter');
+await sleep(2500);
+const items = P.locator('[role=dialog] li, .layer_location li, li').filter({{hasText: A.m}});
+const n = await items.count();
+if (!n) {{ const all = await P.evaluate(() => [...document.querySelectorAll('[role=dialog] li')].map(l => l.innerText.replace(/\\s+/g,' ').slice(0,60))); await P.keyboard.press('Escape'); return {{ok:false, why:'장소 검색 결과에 「'+A.m+'」 없음', all}}; }}
+const picked = (await items.first().innerText()).replace(/\\s+/g, ' ').slice(0, 80);
+await items.first().click();
+await sleep(1500);
+return await P.evaluate((picked) => {{
+  const ed = tinymce.get('editor-tistory');
+  const fig = ed.getBody().querySelector('figure[data-ke-type=location]');
+  if (!fig) return {{ok:false, why:'장소 카드가 안 들어감'}};
+  const h = [...ed.getBody().querySelectorAll('p')].find(p => p.textContent.trim() === '[[PLACE]]');
+  if (h) h.replaceWith(fig);
+  ed.setDirty(true); ed.fire('change');
+  return {{ok:true, picked, name: fig.querySelector('.location-name')?.textContent, addr: fig.querySelector('.location-address')?.textContent}};
+}}, picked);
+"""
+    return pw.repl(body)[0]
+
+
 def open_layer(tid: str, d: dict) -> tuple[dict, list[str]]:
     """완료 → 공개 → (예약). 마지막에 게이트용 상태와 스크린샷."""
     body = pw.attach_js(tid) + f"""
@@ -188,7 +228,8 @@ const s3 = await P.evaluate(() => {{
     cat: document.querySelector('#category-btn').textContent.replace(/더보기\\s*$/, '').trim(),
     edText: (ed.getBody().textContent || '').replace(/\\s+/g, '').length,
     figs: [...ed.getBody().querySelectorAll('figure img')].filter(i => /kakaocdn|daumcdn|tistory/.test(i.getAttribute('src') || '')).length,
-    holders: (ed.getBody().innerHTML.match(/\\[\\[IMG\\d+\\]\\]/g) || []).length,
+    holders: (ed.getBody().innerHTML.match(/\\[\\[(IMG\\d+|PLACE)\\]\\]/g) || []).length,
+    place: !!ed.getBody().querySelector('figure[data-ke-type=location]'),
     tags: ((document.querySelector('.editor_tag') || {{}}).innerText || '').replace(/#/g, '').trim(),
     open20: !!document.getElementById('open20')?.checked, open0: !!document.getElementById('open0')?.checked, open15: !!document.getElementById('open15')?.checked,
     btnText: btn ? btn.textContent.trim() : null, btnDisabled: btn ? btn.disabled : null,
@@ -288,6 +329,12 @@ def run(path: str, dry: bool) -> int:
             log(f"  사진 {n}/{len(imgs)}: {json.dumps(pr, ensure_ascii=False)}")
             if not pr.get("ok"):
                 raise Stop(GATE, f"사진 {n} 실패: {pr.get('why')}")
+        if d.get("place"):
+            lock.touch()
+            pc = place_card(tid, d["place"]["query"], d["place"].get("match") or d["place"]["query"])
+            log(f"  장소 카드: {json.dumps(pc, ensure_ascii=False)}")
+            if not pc.get("ok"):
+                raise Stop(GATE, f"장소 카드 실패: {pc.get('why')} {pc.get('all', '')}")
         vis = pw.VIS
         st, shots = open_layer(tid, {"radio": vis["radio"], "at": it["at"]})
         shot = pw.save_shot(shots, "matjip", "dry" if dry else "pre")
@@ -299,6 +346,8 @@ def run(path: str, dry: bool) -> int:
             "공개": st.get("open20") and not st.get("open0") and not st.get("open15") and st.get("btnText") == vis["btn"] and st.get("btnDisabled") is False,
             "태그 없음": st.get("tags", "x") == "",
         }
+        if d.get("place"):
+            g["장소 카드"] = bool(st.get("place"))
         if it["at"]:
             wd, hm = it["at"].split(" ")
             hh, mm = hm.split(":")

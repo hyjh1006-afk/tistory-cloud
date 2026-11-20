@@ -210,18 +210,31 @@ await inp.fill(ANS, {{timeout: 8000}});
 const typed = await inp.inputValue().catch(() => null);
 if (typed !== ANS) return {{filled: false, typed}};
 let how = 'enter';
-const btn = fl.locator('button, a[role=button], input[type=submit]').filter({{hasText: /^\\s*(확인|입력|제출|완료|정답 확인)\\s*$/}}).first();
-if (await btn.count()) {{ try {{ await btn.click({{timeout: 5000}}); how = 'button'; }} catch (e) {{ await inp.press('Enter'); }} }}
-else await inp.press('Enter');
+// 2026-11-20 실측: DKAPTCHA 제출 버튼은 #btn_dkaptcha_submit 「답변 제출」이고 Enter 로는 제출되지 않는다.
+// (전엔 문구를 「제출」로 딱 맞춰 찾다가 못 찾고 Enter 만 눌러, 맞는 답도 매번 「실패」로 끝났다)
+let btn = fl.locator('#btn_dkaptcha_submit, .btn_submit_dkaptcha').first();
+if (!(await btn.count())) btn = fl.locator('button, a[role=button], input[type=submit]').filter({{hasText: /(답변\\s*제출|확인|입력|제출|완료)/}}).first();
+// 11/20 2차 실측: 실물에서 locator.click 이 실패하면 조용히 Enter 로 빠졌다(Enter 는 제출이 안 된다) → 실패 이유를 남기고 DOM click 으로 한 번 더
+let clickErr = '';
+if (await btn.count()) {{
+  try {{ await btn.click({{timeout: 4000}}); how = 'button'; }}
+  catch (e) {{
+    clickErr = String(e).slice(0, 160);
+    try {{ await btn.evaluate(b => b.click()); how = 'dom-click'; }}
+    catch (e2) {{ clickErr += ' / ' + String(e2).slice(0, 120); await inp.press('Enter'); }}
+  }}
+}} else await inp.press('Enter');
 const u0 = P.url();
 let after = 'still';
-for (let i = 0; i < 16; i++) {{
+for (let i = 0; i < 30; i++) {{   // 맞혀도 저장 요청이 끝나야 캡챠가 닫힌다 — 넉넉히 22초
   await sleep(750);
   if (P.url() !== u0) {{ after = 'navigated'; break; }}
   const vis = await P.locator(IFR).first().isVisible().catch(() => false);
   if (!vis) {{ after = 'gone'; break; }}
 }}
-return {{filled: true, how, after}};
+let msg = '';
+if (after === 'still') {{ try {{ msg = (await fl.locator('body').innerText({{timeout: 3000}})).replace(/\\s+/g, ' ').slice(0, 160); }} catch (e) {{}} }}
+return {{filled: true, how, after, msg, clickErr}};
 """
     return repl(body)[0]
 
@@ -342,8 +355,10 @@ def cmd_relay(a) -> int:
 HARNESS_FRAME = (
     "<!-- dkaptcha harness --><meta charset=utf-8><body style='font:16px sans-serif;padding:12px'>"
     "<p id=q>[CHACAP 시험] 아래 칸에 7 을 넣으면 통과</p>"
-    "<input placeholder='정답을 입력해주세요' style='font-size:16px'> <button>확인</button>"
-    "<script>document.querySelector('button').onclick=()=>{"
+    # 실물 DKAPTCHA 그대로(11/20 실측): 입력칸 #inpDkaptcha, 「새로 풀기」, 제출은 #btn_dkaptcha_submit 「답변 제출」, Enter 로는 제출 안 됨
+    "<input id=inpDkaptcha class=inp_dkaptcha style='font-size:16px'> <button type=button id=btn_dkaptcha_reset>새로 풀기</button>"
+    " <button type=button id=btn_dkaptcha_submit class=btn_submit_dkaptcha>답변 제출</button>"
+    "<script>document.getElementById('btn_dkaptcha_submit').onclick=()=>{"
     "if(document.querySelector('input').value==='7')parent.postMessage('chacap-ok','*');"
     "else document.getElementById('q').textContent='틀렸습니다 — 7 을 넣으세요'}</script>"
 )
