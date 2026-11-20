@@ -108,7 +108,7 @@ class Tg:
         parts.append(f"--{b}--\r\n".encode())
         req = urllib.request.Request(self._base + "sendPhoto", data=b"".join(parts),
                                      headers={"Content-Type": f"multipart/form-data; boundary={b}"})
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=150) as r:
             res = json.loads(r.read())
         if not res.get("ok"):
             raise RuntimeError(f"텔레그램 sendPhoto 실패: {res.get('description')}")
@@ -294,6 +294,20 @@ def cmd_ping(a) -> int:
     return OK
 
 
+def safe(fn, *args):
+    """텔레그램 보내기가 느려 응답 대기 시간이 넘어도(11/20 실측: sendPhoto 60초 초과로 중계가 통째로 죽음) 죽지 않는다.
+    대개 메시지는 이미 갔다 — 기록만 남기고 답을 계속 기다린다."""
+    for attempt in (1, 2):
+        try:
+            return fn(*args)
+        except Exception as exc:
+            log(f"  · 텔레그램 보내기 {attempt}회 실패: {str(exc)[:120]}")
+            if "timed out" in str(exc):     # 시간 초과면 이미 갔을 공산이 크다 — 두 번 보내지 않는다
+                return None
+            time.sleep(3)
+    return None
+
+
 def cmd_relay(a) -> int:
     if not (a.tid or a.match):
         log("✗ --tid 또는 --match 가 필요합니다")
@@ -307,7 +321,11 @@ def cmd_relay(a) -> int:
         log("✗ 텔레그램 채팅이 설정 안 됨 — chacap.sh setup")
         return CANT
     label = a.label or "티스토리"
-    off = tg.drain()
+    try:
+        off = tg.drain()
+    except Exception as exc:          # 네트워크가 느려도 중계는 이어 간다(지난 메시지를 답으로 오인할 위험만 조금 생긴다)
+        log(f"  · drain 실패: {str(exc)[:100]}")
+        off = 0
     deadline_total = time.time() + a.wait_min * 60
     for rnd in range(1, a.rounds + 1):
         info, jpg = capture(a.tid, a.match)
@@ -318,7 +336,7 @@ def cmd_relay(a) -> int:
         relayable = info.get("visible") and (info.get("inputs") or 0) > 0
         if not relayable:
             if jpg:
-                tg.photo(jpg, f"⚠️ {label} — 캡챠로 멈췄는데 입력칸을 못 찾았습니다. 맥에서 직접 풀어 주세요.")
+                safe(tg.photo, jpg, f"⚠️ {label} — 캡챠로 멈췄는데 입력칸을 못 찾았습니다. 맥에서 직접 풀어 주세요.")
             log("✗ 입력칸이 있는 DKAPTCHA 가 아님 — 화면만 보냄")
             return CANT
         if rnd == 1:
@@ -326,37 +344,37 @@ def cmd_relay(a) -> int:
         else:
             cap = "↩️ 통과가 안 됐습니다(틀렸거나 새 문제). 다시 보고 답해 주세요."
         if jpg:
-            tg.photo(jpg, cap)
+            safe(tg.photo, jpg, cap)
         else:
-            tg.send(cap + "\n(화면 캡처 실패 — 맥에서 확인해 주세요)")
+            safe(tg.send, cap + "\n(화면 캡처 실패 — 맥에서 확인해 주세요)")
         while True:
             ans, off = tg.wait_text(off, deadline_total)
             if ans is None:
-                tg.send(f"⌛ {a.wait_min}분 동안 답이 없어 이번 건은 넘깁니다. 편집기 탭은 열어 둡니다.")
+                safe(tg.send, f"⌛ {a.wait_min}분 동안 답이 없어 이번 건은 넘깁니다. 편집기 탭은 열어 둡니다.")
                 log("✗ 답장 없음 — 시간 초과")
                 return NO_ANSWER
             if ans.lower() in PASS_WORDS:
-                tg.send("⏭ 건너뜁니다. 편집기 탭은 열어 둡니다.")
+                safe(tg.send, "⏭ 건너뜁니다. 편집기 탭은 열어 둡니다.")
                 log("· 대표님 패스")
                 return NO_ANSWER
             if ans in NEW_WORDS:
                 refresh(a.tid, a.match)
                 info, jpg = capture(a.tid, a.match)
                 if jpg:
-                    tg.photo(jpg, "🔄 새 문제입니다. 답장으로 정답을 보내 주세요.")
+                    safe(tg.photo, jpg, "🔄 새 문제입니다. 답장으로 정답을 보내 주세요.")
                 continue
             break
         log(f"  답 받음 ({len(ans)}자) — 입력")
         r = type_answer(a.tid, a.match, ans)
         log(f"  입력 결과: {r}")
         if r.get("error") or not r.get("filled"):
-            tg.send(f"⚠️ 입력칸에 넣지 못했습니다({str(r.get('error') or r.get('typed'))[:80]}). 맥에서 직접 넣어 주세요.")
+            safe(tg.send, f"⚠️ 입력칸에 넣지 못했습니다({str(r.get('error') or r.get('typed'))[:80]}). 맥에서 직접 넣어 주세요.")
             return CANT
         if r.get("after") in ("gone", "navigated"):
-            tg.send("✅ 통과 — 발행을 이어 갑니다.")
+            safe(tg.send, "✅ 통과 — 발행을 이어 갑니다.")
             log("✓ 캡챠 통과")
             return OK
-    tg.send(f"❌ {a.rounds}번 시도했는데 통과가 안 됐습니다. 맥에서 확인해 주세요.")
+    safe(tg.send, f"❌ {a.rounds}번 시도했는데 통과가 안 됐습니다. 맥에서 확인해 주세요.")
     return NO_ANSWER
 
 
