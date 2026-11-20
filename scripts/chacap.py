@@ -182,8 +182,18 @@ def capture(tid, match) -> tuple[dict, bytes | None]:
     """캡챠 iframe 만 찍는다. iframe 이 없으면 화면 전체(대표님이 직접 판단하시게)."""
     body = attach_js(tid, match) + """
 const ifr = P.locator(IFR).first();
-const found = await ifr.count() > 0;
-const visible = found ? await ifr.isVisible().catch(() => false) : false;
+// 11/20 실측: 저장 직후엔 캡챠 iframe 이 아직 안 그려져 화면 전체(흐린 편집기)를 보냈다 — 대표님이 풀 수 없는 사진.
+// → iframe 이 보이고 안에 문제 글자가 뜰 때까지 최대 15초 기다린 뒤 찍는다.
+let found = false, visible = false;
+for (let i = 0; i < 30; i++) {
+  found = await ifr.count() > 0;
+  visible = found ? await ifr.isVisible().catch(() => false) : false;
+  if (visible) {
+    const t = await P.frameLocator(IFR).first().locator('body').innerText({timeout: 1500}).catch(() => '');
+    if (/입력해주세요|빈칸|DKAPTCHA/.test(t)) break;
+  }
+  await sleep(500);
+}
 let text = '', inputs = 0, shot = null;
 if (visible) {
   try { await ifr.scrollIntoViewIfNeeded({timeout: 3000}); } catch (e) {}
@@ -341,6 +351,10 @@ def cmd_relay(a) -> int:
             return CANT
         if rnd == 1:
             cap = f"🔐 {label} CAPTCHA\n이 사진에 답장으로 정답만 보내 주세요.\n「새로」 다른 문제 · 「패스」 건너뛰기 ({a.wait_min}분 대기)"
+        # 문제 글자도 같이 적는다 — 사진이 흐리거나 잘려도 무엇을 찾는지 알 수 있게
+        qm = re.search(r"(지도[^.]*?입력해주세요)\s*(?:문제\s*)?(.*?)\s*정답을 입력", info.get("text", ""))
+        if qm:
+            cap += f"\n\n❓ {qm.group(1)}" + (f"\n👉 {qm.group(2).replace('빈칸', ' ___ ')}" if qm.group(2) else "")
         else:
             cap = "↩️ 통과가 안 됐습니다(틀렸거나 새 문제). 다시 보고 답해 주세요."
         if jpg:
