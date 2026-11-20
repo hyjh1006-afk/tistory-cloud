@@ -5,6 +5,8 @@
 # 사용: scripts/publish_waiting.sh [--dry-run] [--fixture <글.json>]
 #   --dry-run          저장 버튼 직전까지 전부 하고 스크린샷(logs/)만 남긴 뒤 버린다.
 #   --fixture <json>   state/local_outputs 형식 파일로 시험(제목 앞에 [DRYRUN-TEST] 붙음). 항상 dry-run.
+#   --reserve [--days N]  「현재」 대신 예약 발행(2026-11-20~ 루틴 기본). 종류마다 N편(기본 2)을 빈 날 18:00 으로.
+#                         한 번에 새 글 최대 4편(PW_MAX_NEW). 확인은 RESERVED_PUBLIC·예약 일시로 한다.
 #
 # 종료 코드
 #   0  정상 (올릴 것 없음 포함)

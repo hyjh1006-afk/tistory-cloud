@@ -54,6 +54,14 @@ VIS_TABLE = {
     "private": {"radio": "open0",  "others": ["open15", "open20"], "btn": "비공개 저장", "api": "PRIVATE", "label": "비공개"},
 }
 VIS = VIS_TABLE[os.environ.get("PW_VISIBILITY", "public")]
+
+# 2026-11-20 대표님: 「매일 저녁 6시에 올라가게 … 맥 안 바쁜 시간대에 작업해서 예약 … 며칠치 몰아서」
+# --reserve 면 「현재」 발행 대신 예약 발행한다. 종류마다 아직 비어 있는 날(18시 슬롯)을 앞에서부터 채운다.
+RESERVE_HM = os.environ.get("PW_RESERVE_AT", "18:00")
+RESERVE_CUTOFF = "17:40"        # 이 시각이 지났으면 오늘 슬롯은 건너뛰고 내일부터 (예약은 미래여야 한다)
+RESERVE_API = "RESERVED_PUBLIC"
+MAX_NEW_PER_RUN = int(os.environ.get("PW_MAX_NEW", "4"))   # 하루 새 글 약 5편 한도(11/12 실측) — 1편은 남겨 둔다
+RESERVE_BTN = os.environ.get("PW_RESERVE_BTN", "공개 발행")  # 11/20 실측: 예약을 골라도 버튼 문구는 그대로 — 예약은 날짜·시·분 게이트와 클릭 직전 재확인이 지킨다
 EDITOR_TAB_RE = re.compile(r"tistory\.com/manage/(newpost|post)(/|\?|$)")
 
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -221,7 +229,7 @@ def wait_no_foreign_editor(lock: EditorLock) -> None:
 
 
 # ── 대기 목록 ────────────────────────────────────────────────────────────
-def load_items(fixture: str | None) -> list[dict]:
+def load_items(fixture: str | None, per_kind: int = 1) -> list[dict]:
     if fixture:
         d = json.loads(Path(fixture).read_text(encoding="utf-8"))
         if not d.get("title", "").startswith("[DRYRUN-TEST]"):
@@ -243,14 +251,29 @@ def load_items(fixture: str | None) -> list[dict]:
             "links": re.findall(r'href="(https://www\.reddit\.com/r/[^"]+)"', html),
             "authors": re.findall(r"작성자:\s*(u/[A-Za-z0-9_-]+)", html),
         })
-    picked, seen = [], set()
+    picked, seen = [], {}
     for it in sorted(items, key=lambda x: x["key"]):  # 파일명 앞이 생성 시각 → 오래된 것부터
-        if it["mode"] in seen:
-            log(f"  · 이번 회차에서 미룸(같은 종류 1편만): {it['key']}")
+        if seen.get(it["mode"], 0) >= per_kind:
+            log(f"  · 이번 회차에서 미룸(같은 종류 {per_kind}편까지): {it['key']}")
             continue
-        seen.add(it["mode"])
+        seen[it["mode"]] = seen.get(it["mode"], 0) + 1
         picked.append(it)
     return picked
+
+
+def assign_slots(todo: list[dict], covered: dict[str, list[str]], now: datetime | None = None) -> None:
+    """예약 모드: 종류마다 비어 있는 날짜(이미 그날 18시대 글이 있거나 예약된 날은 건너뜀)를 오래된 원고부터 채운다."""
+    from datetime import timedelta
+    now = now or datetime.now()
+    start = now.date() if now.strftime("%H:%M") < RESERVE_CUTOFF else now.date() + timedelta(days=1)
+    for mode in CATS:
+        taken = set(covered.get(mode, []))
+        day = start
+        for it in [x for x in todo if x["mode"] == mode]:
+            while day.isoformat() in taken:
+                day += timedelta(days=1)
+            it["at"] = f"{day.isoformat()} {RESERVE_HM}"
+            taken.add(day.isoformat())
 
 
 def mark_done(it: dict, dry: bool) -> None:
@@ -288,7 +311,17 @@ return await P.evaluate(async (items) => {{
     }}
     found[it.key] = {{catId: cid ?? null, hits}};
   }}
-  return {{login:true, cats:flat.map(c=>c.name), autosave: auto.j ? auto.j.autosavedEntry : 'ERR '+auto.s, found}};
+  // 예약 모드용: 종류(카테고리)마다 오늘 이후 이미 올라갔거나 예약된 날짜
+  const CATS = {json.dumps(CATS, ensure_ascii=False)};
+  const today = new Date(Date.now() + 9*3600e3).toISOString().slice(0, 10);
+  const covered = {{}};
+  for (const [mode, name] of Object.entries(CATS)) {{
+    const cid = (flat.find(c => c.name === name) || {{}}).id;
+    const r = cid == null ? null : await J('/manage/posts.json?category='+cid+'&page=1&searchKeyword=&searchType=title&visibility=all');
+    covered[mode] = (((r && r.j && r.j.items) || []).filter(p => /PUBLIC/.test(p.visibility || ''))
+      .map(p => String(p.published || '').slice(0, 10)).filter(d => d >= today));
+  }}
+  return {{login:true, cats:flat.map(c=>c.name), autosave: auto.j ? auto.j.autosavedEntry : 'ERR '+auto.s, found, covered}};
 }}, {json.dumps(args, ensure_ascii=False)});
 """
     res, _ = repl(body)
@@ -327,7 +360,8 @@ return await P.evaluate(async (bk) => {{
 
 
 def prepare_editor(tid: str, it: dict, dry: bool = False) -> tuple[dict, list[str]]:
-    d = {"title": it["title"], "html": it["html"], "cat": it["cat"], "typed": it["title"], "radio": VIS["radio"]}
+    d = {"title": it["title"], "html": it["html"], "cat": it["cat"], "typed": it["title"], "radio": VIS["radio"],
+         "at": it.get("at")}
     # 게이트가 진짜 잡는지 반증용 (dry-run 에서만): PW_TEST_BREAK=title 이면 제목을 일부러 틀리게 친다
     if dry and os.environ.get("PW_TEST_BREAK") == "title":
         d["typed"] = it["title"] + " X"
@@ -390,6 +424,44 @@ const s2 = await P.evaluate(async (D) => {{
   if (!o0) return {{ok:false, why:'발행 레이어 안 뜸', title, tags, cat}};
   (document.querySelector('label[for=' + D.radio + ']') || o0.parentElement).click();
   await new Promise(r => setTimeout(r, 800));
+  if (D.at) {{
+    // 예약: 「예약」 → 달력에서 그 달로 넘겨 날짜 클릭 → 시·분은 아래에서 진짜 입력 (cedar_post.sh 와 같은 방식)
+    const [wd] = D.at.split(' ');
+    const wantYM = wd.slice(0, 7), wantDay = String(Number(wd.slice(8, 10)));
+    const res = [...document.querySelectorAll('button,a,span,label')].find(e => e.textContent.trim() === '예약' && e.offsetParent !== null);
+    if (!res) return {{ok:false, why:'예약 버튼 없음', title, tags, cat}};
+    res.click();
+    await new Promise(r => setTimeout(r, 1200));
+    const dbtn = () => [...document.querySelectorAll('button')].find(b => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(b.textContent.trim()));
+    const visE = e => e && e.offsetHeight > 0;
+    let cal = document.querySelector('.box_calendar');
+    if (!visE(cal)) {{ const b = dbtn(); if (!b) return {{ok:false, why:'예약 날짜 버튼 없음', title, tags, cat}}; b.click(); await new Promise(r => setTimeout(r, 1000)); cal = document.querySelector('.box_calendar'); }}
+    if (!cal) return {{ok:false, why:'달력 안 뜸', title, tags, cat}};
+    for (let i = 0; i < 14; i++) {{
+      const [y, m] = cal.querySelector('.txt_calendar').textContent.replace(/[^0-9]+/g, '-').replace(/^-|-$/g, '').split('-');
+      if (y + '-' + String(m).padStart(2, '0') === wantYM) break;
+      const nx = cal.querySelector('.btn_next');
+      if (!nx || nx.disabled) return {{ok:false, why:'달력 이동 실패', title, tags, cat}};
+      nx.click(); await new Promise(r => setTimeout(r, 500));
+      cal = document.querySelector('.box_calendar');
+    }}
+    const day = [...cal.querySelectorAll('button.btn_day')].filter(b => !b.disabled).find(b => b.textContent.trim() === wantDay);
+    if (!day) return {{ok:false, why:'날짜 버튼 없음 '+wd, title, tags, cat}};
+    day.click();
+    await new Promise(r => setTimeout(r, 900));
+    const h = document.getElementById('dateHour'); if (!h) return {{ok:false, why:'시 입력칸 없음', title, tags, cat}};
+    h.focus(); h.select();
+  }}
+  return {{ok:true, title, tags, cat}};
+}}, D);
+if (!s2.ok) return Object.assign({{}}, s1, s2);
+if (D.at) {{
+  const [, hm] = D.at.split(' '); const [HH, MM] = hm.split(':');
+  await P.keyboard.insertText(HH); await sleep(300);
+  await P.evaluate(() => {{ const m = document.getElementById('dateMinute'); m.focus(); m.select(); }});
+  await P.keyboard.insertText(MM); await sleep(500);
+}}
+const s3 = await P.evaluate(async (D) => {{
   // 예약이 켜져 있으면 "지금 발행"이 아니게 된다 — 발행일 「현재」가 골라져 있는지도 같이 본다
   const dateBtns = [...document.querySelectorAll('.layer_post button, .editor_layer button, button')].filter(b => b.offsetParent !== null && /^(현재|예약)$/.test(b.textContent.trim()));
   const nowBtn = dateBtns.find(b => b.textContent.trim() === '현재');
@@ -397,7 +469,10 @@ const s2 = await P.evaluate(async (D) => {{
   const on = b => !!b && (/(^|\\s)(on|active|selected|checked)(\\s|$)/.test(b.className) || b.getAttribute('aria-pressed') === 'true' || b.getAttribute('aria-selected') === 'true');
   const btn = document.getElementById('publish-btn');
   const vis = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null).map(b => b.textContent.trim()).filter(Boolean);
-  return {{ok:true, title, tags, cat,
+  const db = [...document.querySelectorAll('button')].find(b => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(b.textContent.trim()) && b.offsetParent !== null);
+  const hh = document.getElementById('dateHour'), mm = document.getElementById('dateMinute');
+  return {{ok:true,
+    resDate: db ? db.textContent.trim() : null, resHour: hh && hh.offsetParent !== null ? hh.value : null, resMin: mm && mm.offsetParent !== null ? mm.value : null,
     open0: document.getElementById('open0').checked, open15: !!document.getElementById('open15')?.checked, open20: !!document.getElementById('open20')?.checked,
     btnText: btn ? btn.textContent.trim() : null, btnDisabled: btn ? btn.disabled : null,
     reserved: on(resBtn) && !on(nowBtn), dateBtns: dateBtns.map(b => b.textContent.trim() + ':' + b.className),
@@ -405,34 +480,44 @@ const s2 = await P.evaluate(async (D) => {{
 }}, D);
 const shot = await P.screenshot({{type:'jpeg', quality:55}});
 console.log('SHOT=' + shot.toString('base64'));
-return Object.assign({{}}, s1, s2);
+return Object.assign({{}}, s1, s2, s3);
 """
     return repl(body)
 
 
+def want_btn(it: dict) -> str:
+    return RESERVE_BTN if it.get("at") else VIS["btn"]
+
+
 def gates(it: dict, r: dict) -> dict[str, bool]:
     src, got = r.get("srcText") or 0, r.get("edText") or 0
+    if it.get("at"):
+        wd, hm = it["at"].split(" ")
+        hh, mm = hm.split(":")
+        when = {"예약 일시": r.get("resDate") == wd and r.get("resHour") == hh and r.get("resMin") == mm}
+    else:
+        when = {"예약 아님": not r.get("reserved")}
     return {
         "제목 일치": r.get("title") == it["title"],
         "본문 있음": got > 0 and src > 0,
         "본문 길이 ±2%": src > 0 and abs(got - src) / src <= LEN_TOL,
         VIS["label"]: bool(r.get(VIS["radio"])) and not any(r.get(o) for o in VIS["others"])
-                 and r.get("btnText") == VIS["btn"] and r.get("btnDisabled") is False,
-        "예약 아님": not r.get("reserved"),
+                 and r.get("btnText") == want_btn(it) and r.get("btnDisabled") is False,
+        **when,
         "카테고리": r.get("cat") == it["cat"],
         "태그 없음": r.get("tags", "x") == "",
         "저장중 아님": not r.get("saving"),
     }
 
 
-def cancel_layer(tid: str) -> None:
+def cancel_layer(tid: str, btn: str | None = None) -> None:
     body = attach_js(tid) + """
 return await P.evaluate(async (BTN) => {
   const c = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === '취소' && b.offsetParent !== null);
   if (c) c.click();
   await new Promise(r => setTimeout(r, 600));
   return {ok:true, layerGone: ![...document.querySelectorAll('button')].some(b => b.textContent.trim() === BTN && b.offsetParent !== null), blocked: window.__pwBlocked};
-}, """ + json.dumps(VIS["btn"], ensure_ascii=False) + """);
+}, """ + json.dumps(btn or VIS["btn"], ensure_ascii=False) + """);
 """
     try:
         log(f"  · 발행 레이어 닫음 {repl(body)[0]}")
@@ -442,7 +527,7 @@ return await P.evaluate(async (BTN) => {
 
 def commit_save(tid: str, it: dict, prepared: dict) -> tuple[dict, list[str]]:
     d = {"title": it["title"], "cat": it["cat"], "edText": prepared.get("edText"),
-         "radio": VIS["radio"], "others": VIS["others"], "btn": VIS["btn"]}
+         "radio": VIS["radio"], "others": VIS["others"], "btn": want_btn(it), "at": it.get("at")}
     body = attach_js(tid) + f"""
 const D = {json.dumps(d, ensure_ascii=False)};
 // 클릭 직전, 같은 틱에서 전부 다시 확인한다. 하나라도 어긋나면 누르지 않는다.
@@ -458,6 +543,11 @@ const pre = await P.evaluate((D) => {{
     visibility: !!want && want.checked && othersOff,
     button: !!btn && btn.textContent.trim() === D.btn && !btn.disabled && btn.offsetParent !== null,
   }};
+  if (D.at) {{   // 예약값을 못 잡았는데 누르면 「지금 공개 발행」이 된다(2026-09-04 cedar 에서 당함) — 같은 틱에 다시 본다
+    const db = [...document.querySelectorAll('button')].find(b => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(b.textContent.trim()) && b.offsetParent !== null);
+    const [wd, hm] = D.at.split(' '); const [HH, MM] = hm.split(':');
+    chk.reserve = !!db && db.textContent.trim() === wd && document.getElementById('dateHour')?.value === HH && document.getElementById('dateMinute')?.value === MM;
+  }}
   if (!Object.values(chk).every(Boolean)) return {{clicked:false, chk}};
   btn.click();
   return {{clicked:true, chk}};
@@ -523,7 +613,7 @@ return {{left: false}};
 
 
 def verify_saved(tid: str, it: dict, cat_id) -> dict:
-    d = {"title": it["title"], "cat": it["cat"], "catId": cat_id, "nLinks": len(it["links"])}
+    d = {"title": it["title"], "cat": it["cat"], "catId": cat_id, "nLinks": len(it["links"]), "at": it.get("at")}
     body = attach_js(tid) + f"""
 const D = {json.dumps(d, ensure_ascii=False)};
 if (!/tester188\\.tistory\\.com\\/manage/.test(P.url())) {{ await P.goto({json.dumps(BLOG + "/manage/posts/")}); await sleep(2500); }}
@@ -540,6 +630,9 @@ return await P.evaluate(async (D) => {{
     }}
   }}
   if (!hit) return {{found:false}};
+  if (D.at) {{   // 예약글은 아직 공개 주소가 없다 — 관리 API 의 상태·예약 시각으로 판정한다
+    return {{found:true, id:hit.id, visibility:hit.visibility, category:hit.category, permalink:hit.permalink, published:hit.published}};
+  }}
   const r = await F(hit.permalink || ('/' + hit.id), {{cache:'no-store', credentials:'include'}});
   const t = await r.text();
   const reddit = (t.match(/reddit\\.com\\/r\\//g) || []).length;
@@ -576,7 +669,7 @@ def save_shot(shots: list[str], key: str, tag: str) -> str | None:
 def run(args) -> int:
     dry = args.dry_run or bool(args.fixture)
     log(f"=== publish_waiting {'DRY-RUN' if dry else '실행'} {('fixture='+args.fixture) if args.fixture else ''}")
-    items = load_items(args.fixture)
+    items = load_items(args.fixture, per_kind=args.days if args.reserve else 1)
     if not items:
         log("올릴 괴담 없음 (대기 목록에 두 줄·단편 없음)")
         return OK
@@ -639,6 +732,16 @@ def run(args) -> int:
                 todo.append(it)
         if not todo:
             log("새로 저장할 글 없음")
+        if args.reserve and todo:
+            assign_slots(todo, pf.get("covered") or {})
+            log("  예약 슬롯: " + ", ".join(f"{it['cat']} {it['at']}" for it in todo)
+                + f"  (이미 찬 날: {json.dumps(pf.get('covered'), ensure_ascii=False)})")
+            if len(todo) > MAX_NEW_PER_RUN:
+                for it in sorted(todo, key=lambda x: x["at"])[MAX_NEW_PER_RUN:]:
+                    log(f"  · 하루 새 글 한도 때문에 다음 회차로: {it['key']} ({it['at']})")
+                todo = sorted(todo, key=lambda x: x["at"])[:MAX_NEW_PER_RUN]
+            else:
+                todo = sorted(todo, key=lambda x: x["at"])
 
         if todo and auto is not None:
             # 남이 남긴 자동저장 → 편집기를 열면 자동 수락돼 로드된다. 백업 후 비우고, 끝에 되돌린다.
@@ -664,7 +767,7 @@ def run(args) -> int:
             if prep.get("login") is False:
                 raise Stop(LOGIN, f"로그인 필요 ({prep.get('href')})")
             if prep.get("error") or not prep.get("ok"):
-                cancel_layer(tid)
+                cancel_layer(tid, want_btn(it))
                 raise Stop(GATE, f"편집기 준비 실패: {prep.get('error') or prep.get('why')} {json.dumps({k: v for k, v in prep.items() if k not in ('ok',)}, ensure_ascii=False)[:300]}")
             g = gates(it, prep)
             log("  게이트: " + ", ".join(f"{k}={'O' if v else 'X'}" for k, v in g.items())
@@ -672,12 +775,13 @@ def run(args) -> int:
             if shot:
                 log(f"  스크린샷: {shot}")
             if not all(g.values()):
-                cancel_layer(tid)
+                cancel_layer(tid, want_btn(it))
                 bad = [k for k, v in g.items() if not v]
                 raise Stop(GATE, f"게이트 실패 {bad} — 저장 안 함")
             if dry:
-                log(f"  DRY-RUN would save: {it['title']} [{it['cat']}] {VIS['label']}")
-                cancel_layer(tid)
+                log(f"  DRY-RUN would save: {it['title']} [{it['cat']}] {VIS['label']}" + (f" 예약 {it['at']}" if it.get("at") else "")
+                    + f" 버튼={prep.get('btnText')!r} 예약칸={prep.get('resDate')} {prep.get('resHour')}:{prep.get('resMin')}")
+                cancel_layer(tid, want_btn(it))
                 summary.append({"key": it["key"], "result": "dry-run", "screenshot": shot})
                 continue
 
@@ -688,7 +792,7 @@ def run(args) -> int:
                 + (f" 스크린샷 {shot2}" if shot2 else ""))
             if res.get("state") == "not-clicked":
                 clicked = False
-                cancel_layer(tid)
+                cancel_layer(tid, want_btn(it))
                 raise Stop(GATE, "클릭 직전 재확인 실패 — 저장 안 함")
             if res.get("state") == "captcha":
                 keep_tab = True
@@ -707,18 +811,23 @@ def run(args) -> int:
 
             v = verify_saved(tid, it, it.get("catId"))
             log(f"  확인: {json.dumps(v, ensure_ascii=False)}")
-            if v.get("found") and v.get("visibility") != VIS["api"]:
-                raise Stop(UNVERIFIED, f"🚨 {VIS['label']}가 아닌 상태로 저장됨: /{v.get('id')} {v.get('visibility')} — 즉시 확인")
-            ok = (v.get("found") and v.get("visibility") == VIS["api"] and str(v.get("category", "")).endswith(it["cat"])
-                  and v.get("srcLink") and (v.get("reddit") or 0) >= max(1, len(it["links"])))
+            want_api = RESERVE_API if it.get("at") else VIS["api"]
+            if v.get("found") and v.get("visibility") != want_api:
+                raise Stop(UNVERIFIED, f"🚨 {want_api} 가 아닌 상태로 저장됨: /{v.get('id')} {v.get('visibility')} — 즉시 확인")
+            if it.get("at"):
+                ok = (v.get("found") and str(v.get("category", "")).endswith(it["cat"])
+                      and str(v.get("published", "")).startswith(it["at"]))
+            else:
+                ok = (v.get("found") and v.get("visibility") == VIS["api"] and str(v.get("category", "")).endswith(it["cat"])
+                      and v.get("srcLink") and (v.get("reddit") or 0) >= max(1, len(it["links"])))
             if not ok:
                 raise Stop(UNVERIFIED, f"저장했지만 확인 실패: {it['title']} ({json.dumps(v, ensure_ascii=False)[:200]}) — 재시도 금지")
             mark_done(it, dry)
             clicked = False
             keep_tab = False   # CHACAP 으로 통과해 저장까지 확인됐으면 탭을 남길 이유가 없다
             summary.append({"key": it["key"], "result": "saved", "id": v["id"], "url": v.get("permalink"),
-                            "title": it["title"], "sources": list(zip(it["authors"], it["links"]))})
-            log(f"  ✓ {VIS['btn']} 확인: {v.get('permalink')}")
+                            "title": it["title"], "at": it.get("at"), "sources": list(zip(it["authors"], it["links"]))})
+            log(f"  ✓ {want_btn(it)} 확인: {v.get('permalink')}" + (f" (예약 {v.get('published')})" if it.get("at") else ""))
     except Stop as exc:
         code = exc.code
         log(f"✗ [{exc.code}] {exc.msg}")
@@ -749,7 +858,7 @@ def run(args) -> int:
     (LOG_DIR / f"publish_{TS}.json").write_text(json.dumps({"exit": code, "dry": dry, "items": summary}, ensure_ascii=False, indent=1), encoding="utf-8")
     for s in summary:
         if s["result"] == "saved":
-            print(f"SAVED\t{s['title']}\t{s['url']}")
+            print(f"SAVED\t{s['title']}\t{s['url']}" + (f"\t예약 {s['at']}" if s.get("at") else ""))
             for a, l in s["sources"]:
                 print(f"SOURCE\t{a}\t{l}")
         elif s["result"] == "already":
@@ -766,6 +875,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--fixture")
+    ap.add_argument("--reserve", action="store_true", help="현재 발행 대신 비어 있는 날 18시로 예약 발행")
+    ap.add_argument("--days", type=int, default=2, help="--reserve 때 종류마다 몇 편(=며칠치)까지")
     args = ap.parse_args()
     try:
         return run(args)
