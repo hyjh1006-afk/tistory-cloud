@@ -424,3 +424,6 @@
 - [함정] 카테고리 관리 「카테고리 추가」는 locator click 이 안 먹는다 → `label.lab_add` 의 좌표를 구해 `page.mouse.click`. 주제 드롭다운도 같은 식(마우스 클릭).
 - [방법] 이미지 여러 장 글: 본문에 `<p>[[IMGn]]</p>` 자리표시 → 그 문단에 커서를 두고 툴바 첨부→사진 → `setInputFiles`(파일은 Aside 세션 폴더로 복사해 파일명만) → 올라온 figure(img data-filename)로 자리표시를 replaceWith. 5장 모두 한 번에 성공.
 - [CHACAP] 공개 발행 중 캡챠 → `scripts/chacap.sh relay --match 'tester188\.tistory\.com/manage/newpost/$'` 로 대표님 텔레그램 중계, 2회 답장 뒤 통과(rc 0). 올린 뒤 원고·삽화는 규칙대로 삭제.
+
+## 2026-11-20
+- [일정] 대표님: 괴담 루틴 **주 1회(일 21시) → 매일 저녁 6시**(주말 포함, 두 줄·단편 1편씩). 예약 `gwidam-daily-post` cron `30 17 * * *`(+지터 약 10분 → 17:40 깨움, 번역 뒤 18시 무렵 공개 발행). 18:20~18:55 cedar 실행 거부 창과 겹치니 연재 예약은 그 시간대 피할 것.
