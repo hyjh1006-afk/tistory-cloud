@@ -390,8 +390,8 @@ def cmd_export(a) -> int:
 # ── 가게 찾기·위치 지도 ──────────────────────────────────────────────────
 NEAR_JS = r"""
 const A = __ARGS__;
-let t = (await listBrowserTabs()).find(x => /map\.kakao\.com/.test(x.url));
-const P = t ? await attachBrowserTab(t.targetId) : await openTab('https://map.kakao.com/');
+// 우리 탭을 새로 열고 끝에 닫는다(대표님 11/20: 띄운 탭은 닫기) — 남의 카카오맵 탭은 건드리지 않는다
+const P = await openTab('https://map.kakao.com/');
 const conv = await P.evaluate(async ([lat, lng]) => { const r = await fetch(`/link/map/x,${lat},${lng}`); const m = r.url.match(/urlX=([\d.]+)&urlY=([\d.]+)/); return m ? [m[1], m[2]] : null; }, [A.lat, A.lng]);
 if (!conv) return {error: 'coord'};
 await P.goto(`https://map.kakao.com/?urlX=${conv[0]}&urlY=${conv[1]}&urlLevel=2`);
@@ -408,6 +408,7 @@ for (const q of A.kws) {
     hours: li.querySelector('.openhour')?.textContent.replace(/\s+/g, ' ').trim(),
     url: li.querySelector('a.moreview')?.href || null })));
 }
+try { await closeTab(P); } catch (e) {}
 return out;
 """
 
