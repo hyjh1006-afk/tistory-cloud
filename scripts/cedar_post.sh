@@ -219,7 +219,7 @@ for i in $(seq 1 180); do
   [ "$said" = "1" ] && { echo "  ▶ CAPTCHA 해결됨"; sleep 6; break; }
 done
 if [ "$said" = "1" ] && [ "$busy" = "y" ]; then
-  echo "  ⏸ CAPTCHA 15분 안에 안 풀림 — 편집기 탭은 그대로 둔다(지금 풀면 저장될 수 있음). posts.json 으로 직접 확인할 것"
+  echo "  ⏸ CAPTCHA 15분 안에 안 풀림 — 편집기 탭을 닫는다(11/20 대표님: 띄운 탭은 닫기, 늦게 풀어도 저장 안 됨). posts.json 으로 확인 뒤 다시 돌릴 것"; "$A" closeend "/manage/newpost/" >/dev/null 2>&1 || true
 fi
 
 # 5) 검증 — 발행 버튼을 눌러도 글이 안 만들어지는 경우가 있다(하루 한도 등). 반드시 확인한다.

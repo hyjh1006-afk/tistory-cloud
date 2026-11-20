@@ -849,10 +849,11 @@ def run(args) -> int:
             except Stop as exc:
                 log(f"자동저장 마무리 실패: {exc.msg}")
         if tid:
+            # 2026-11-20 대표님: 「작업이 끝나면 작업하느라 띄운 탭을 닫아야돼 … 어사이드 탭 계속 쌓여서 터질거아냐」
+            # → 캡챠·확인 실패여도 탭은 닫는다(늦게 풀어도 저장이 안 되는 게 실측 — 다음 회차가 새 편집기로 다시 한다).
             if keep_tab:
-                log("편집기 탭은 사람이 보도록 열어 둠")
-            else:
-                close_tab(tid)
+                log("편집기 탭은 남기지 않고 닫음(다음 회차가 다시 시도)")
+            close_tab(tid)
         lock.release()
 
     (LOG_DIR / f"publish_{TS}.json").write_text(json.dumps({"exit": code, "dry": dry, "items": summary}, ensure_ascii=False, indent=1), encoding="utf-8")
