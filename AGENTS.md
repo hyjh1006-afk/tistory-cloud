@@ -33,3 +33,10 @@
 - 비밀: 봇 토큰은 키체인 서비스 `chacap-telegram` 계정 `bot`(대표님이 직접 넣음), 대표님 채팅 id 는 같은 서비스 계정 `chat`(setup 이 넣음). 값은 어디에도 적지 않는다.
 - 토큰 넣는 법(대표님): `security add-generic-password -U -s chacap-telegram -a bot -w` → 프롬프트에 붙여넣기(셸 기록에 안 남음).
 - 발행 스크립트가 알아서 부른다(`publish_waiting.py`, `cedar_post.sh`). 봇이 없으면 예전처럼 rc 7·탭 열어 둠.
+## 맛집 후기 (2026-11-20 대표님)
+- 예약 작업 `matjip-review`(매일 20시): 폰 사진(맥 사진 보관함, iCloud) → 새 식당 방문 찾기 → **대표님 텔레그램으로 질문** → 답장으로 받은 답 + 사진 + 카카오맵 확인 정보로 글 → **윤문(humanize) 필수** → 「맛집」 카테고리 공개 발행 → 사본 삭제.
+- 도구: `scripts/matjip.sh`(scan·ask·collect·export·posted·skip, 사용법은 matjip.py 머리말) · `scripts/matjip_post.sh <글.json>`(사진 여러 장 발행, 종료코드는 publish_waiting 과 같음).
+- **데이터는 레포 밖 `~/.local/share/oddo-matjip/`** — 이 레포는 공개라 사진·좌표·대표님 답·원고를 절대 넣지 않는다. 사진은 export 때 위치 등 메타데이터를 지운 JPEG 로만 올린다.
+- 텔레그램 봇은 CHACAP 과 같이 쓴다 → 누가 getUpdates 로 받든 공용 일지 `~/.local/share/oddo-tg/inbox.jsonl`(`scripts/tg_inbox.py`)에 먼저 적는다. 맛집 질문은 「🍽」로 시작하고, CHACAP 은 그 질문에 단 답장을 캡챠 답으로 쓰지 않는다.
+- 사진 앱이 꺼져 있으면 보관함이 iCloud 와 안 맞춰진다 → `scan` 이 뒤에서 열고 동기화를 기다린 뒤 닫는다. 새 사진은 원본이 맥에 없다(최적화 저장) → `export` 가 사진 앱 AppleScript `export … with using originals` 로 받는다.
+- 하루 새 글 한도(약 5편): 괴담이 홀수 날 15시에 4편 예약 → 맛집은 홀수 날 1편·짝수 날 3편까지.

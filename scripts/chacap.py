@@ -35,6 +35,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tg_inbox  # noqa: E402  공용 텔레그램 일지(맛집 질문과 봇을 같이 씀)
+
 ASIDE = os.path.expanduser("~/.local/bin/aside")
 KC_SERVICE = "chacap-telegram"
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,6 +90,9 @@ class Tg:
             res = json.loads(e.read() or b"{}")
         if not res.get("ok"):
             raise RuntimeError(f"텔레그램 {method} 실패: {res.get('description')}")
+        if method == "getUpdates":
+            # 맛집 질문 답장과 봇을 같이 쓴다 — 확인 처리로 사라지기 전에 공용 일지에 적어 둔다(scripts/tg_inbox.py)
+            tg_inbox.journal(res["result"], self.chat)
         return res["result"]
 
     def send(self, text: str) -> dict:
@@ -110,8 +116,14 @@ class Tg:
 
     def drain(self) -> int:
         """지금까지 쌓인 메시지는 답으로 쓰지 않는다 — 다음에 읽을 offset 을 돌려준다."""
-        ups = self.call("getUpdates", {"offset": -1, "timeout": 0})
-        return (ups[-1]["update_id"] + 1) if ups else 0
+        # offset -1 은 마지막 1건만 돌려주고 나머지를 버린다 → 쌓인 걸 전부 받아 일지에 남긴 뒤 그 다음부터
+        last = None
+        for _ in range(20):
+            ups = self.call("getUpdates", {"timeout": 0} if last is None else {"offset": last + 1, "timeout": 0})
+            if not ups:
+                break
+            last = ups[-1]["update_id"]
+        return (last + 1) if last is not None else 0
 
     def wait_text(self, offset: int, deadline: float) -> tuple[str | None, int]:
         """대표님 채팅에서 온 다음 글자 메시지. 다른 채팅에서 온 건 무시한다."""
@@ -129,7 +141,8 @@ class Tg:
                 m = u.get("message") or {}
                 if str((m.get("chat") or {}).get("id")) != str(self.chat):
                     continue
-                if m.get("text"):
+                if m.get("text") and not tg_inbox.is_food_reply(m):   # 맛집 질문에 단 답장은 캡챠 답이 아니다
+                    tg_inbox.mark_used(u["update_id"], "chacap")
                     return m["text"].strip(), offset
         return None, offset
 
