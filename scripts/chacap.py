@@ -209,6 +209,12 @@ const inp = fl.locator('input[placeholder*="정답"], input[type=text], input:no
 await inp.fill(ANS, {{timeout: 8000}});
 const typed = await inp.inputValue().catch(() => null);
 if (typed !== ANS) return {{filled: false, typed}};
+// 11/20 3차 실측: DKAPTCHA 는 jQuery keyup 이 와야 「답변 제출」 disabled 를 푼다. fill·한글 입력은 keyup 을 안 낸다
+// → 버튼이 꺼진 채 클릭 실패 → Enter(무효) → 맞는 답도 「통과 안 됨」. keyup·change 를 직접 쏘고 버튼이 켜질 때까지 본다.
+for (const ev of ['keyup', 'change']) {{ try {{ await inp.dispatchEvent(ev); }} catch (e) {{}} }}
+const subBtn = fl.locator('#btn_dkaptcha_submit, .btn_submit_dkaptcha').first();
+let enabled = null;
+if (await subBtn.count()) {{ for (let i = 0; i < 12; i++) {{ enabled = await subBtn.isEnabled().catch(() => null); if (enabled) break; await sleep(250); }} }}
 let how = 'enter';
 // 2026-11-20 실측: DKAPTCHA 제출 버튼은 #btn_dkaptcha_submit 「답변 제출」이고 Enter 로는 제출되지 않는다.
 // (전엔 문구를 「제출」로 딱 맞춰 찾다가 못 찾고 Enter 만 눌러, 맞는 답도 매번 「실패」로 끝났다)
@@ -234,7 +240,7 @@ for (let i = 0; i < 30; i++) {{   // 맞혀도 저장 요청이 끝나야 캡챠
 }}
 let msg = '';
 if (after === 'still') {{ try {{ msg = (await fl.locator('body').innerText({{timeout: 3000}})).replace(/\\s+/g, ' ').slice(0, 160); }} catch (e) {{}} }}
-return {{filled: true, how, after, msg, clickErr}};
+return {{filled: true, how, after, msg, clickErr, enabled}};
 """
     return repl(body)[0]
 
@@ -358,7 +364,10 @@ HARNESS_FRAME = (
     # 실물 DKAPTCHA 그대로(11/20 실측): 입력칸 #inpDkaptcha, 「새로 풀기」, 제출은 #btn_dkaptcha_submit 「답변 제출」, Enter 로는 제출 안 됨
     "<input id=inpDkaptcha class=inp_dkaptcha style='font-size:16px'> <button type=button id=btn_dkaptcha_reset>새로 풀기</button>"
     " <button type=button id=btn_dkaptcha_submit class=btn_submit_dkaptcha>답변 제출</button>"
-    "<script>document.getElementById('btn_dkaptcha_submit').onclick=()=>{"
+    # 실물처럼: 「답변 제출」은 disabled 로 시작하고 keyup 이 와야 켜진다(11/20 3차 실측)
+    "<script>const SB=document.getElementById('btn_dkaptcha_submit');SB.disabled=true;"
+    "document.getElementById('inpDkaptcha').addEventListener('keyup',()=>{SB.disabled=!document.getElementById('inpDkaptcha').value});"
+    "SB.onclick=()=>{"
     "if(document.querySelector('input').value==='7')parent.postMessage('chacap-ok','*');"
     "else document.getElementById('q').textContent='틀렸습니다 — 7 을 넣으세요'}</script>"
 )

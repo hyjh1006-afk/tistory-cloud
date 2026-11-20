@@ -437,3 +437,5 @@
 - [함정] aside repl(CLI·MCP 모두)은 세션 폴더 밖 파일을 fs·setInputFiles 로 못 읽고, CLI 는 호출마다 세션 폴더가 바뀐다 → 사진은 base64 40만 자 조각으로 편집기 window 에 쌓고, 「첨부→사진」이 즉석으로 만든 input 의 click() 을 가로채 DataTransfer 로 파일을 꽂는다(matjip_post.py). dry-run 2장 업로드·자리표시 교체 통과.
 - [함정] 네이버지도 검색 API 는 자동 호출에 ncaptcha 를 건다(우회 안 함) → 가게 확인은 카카오맵 화면 검색(`#search\.keyword\.query`).
 - [CHACAP 수정] `drain()` 이 offset -1 로 마지막 1건만 받고 나머지를 버리던 것 → 전부 받아 일지에 남긴 뒤 넘어가게. 맛집 질문 답장은 캡챠 답으로 안 씀.
+- [🐛 CHACAP 「맞게 썼는데 실패」 — 원인 둘] ① 제출 버튼이 `#btn_dkaptcha_submit` 「답변 제출」인데 문구를 「제출」로 딱 맞춰 찾아 못 찾고 Enter(제출 안 됨)로 빠졌다. ② 더 근본: DKAPTCHA 는 **jQuery keyup 이 와야 버튼 disabled 를 푼다** — Playwright `fill`·한글 `pressSequentially` 는 keyup 을 안 내서 버튼이 꺼진 채 클릭 실패(`Element is disabled`) → Enter. 고침: 입력 뒤 `keyup`·`change` 를 직접 쏘고 버튼이 켜질 때까지 본 뒤 클릭, 실패 이유(clickErr)·버튼 상태(enabled)를 결과에 남김. selftest 가짜 캡챠도 실물처럼(id·문구·keyup 전까지 disabled) 바꿨고, 고침을 빼면 selftest 가 `Element is disabled` 로 실패하는 것까지 반증.
+- [맛집 첫 글] /251 「[여의도] 항아리갈비탕 여의도점」 공개(사진·OSM 위치 지도·장소 카드). 대표님 지시로 가게 이름은 위치로 찾고(`matjip.sh near`), 말 안 한 장면도 지어내 풍성하게 쓴다(가게 이름·주소·가격·별점은 사실대로).
