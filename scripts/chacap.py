@@ -194,20 +194,52 @@ for (let i = 0; i < 30; i++) {
   }
   await sleep(500);
 }
-let text = '', inputs = 0, shot = null;
+let text = '', inputs = 0, shot = null, box = null, dpr = 1;
 if (visible) {
   try { await ifr.scrollIntoViewIfNeeded({timeout: 3000}); } catch (e) {}
-  try { shot = await ifr.screenshot({type: 'jpeg', quality: 85}); } catch (e) {}
+  // 11/20 실측: Aside 에선 요소 스크린샷·clip 이 위치를 무시하고 화면 왼쪽 위를 잘라 준다(흐린 편집기 사진의 정체).
+  // → 화면 전체를 찍고(이건 정확하다) 상자 좌표·배율을 같이 넘겨 파이썬에서 자른다.
+  try { box = await ifr.boundingBox(); dpr = await P.evaluate(() => window.devicePixelRatio || 1); } catch (e) {}
+  try { shot = await P.screenshot({type: 'jpeg', quality: 88}); } catch (e) {}
   const fl = P.frameLocator(IFR).first();
   try { text = (await fl.locator('body').innerText({timeout: 5000})).replace(/\\s+/g, ' ').slice(0, 300); } catch (e) {}
   try { inputs = await fl.locator('input:not([type=hidden]):not([type=checkbox]):not([type=radio])').count(); } catch (e) {}
 }
 if (!shot) shot = await P.screenshot({type: 'jpeg', quality: 70});
 console.log('SHOT=' + shot.toString('base64'));
-return {found, visible, text, inputs, url: P.url()};
+return {found, visible, text, inputs, url: P.url(), box, dpr};
 """
     res, shots = repl(body)
-    return res, (base64.b64decode(shots[-1]) if shots else None)
+    jpg = base64.b64decode(shots[-1]) if shots else None
+    if jpg and res.get("box"):
+        jpg = crop_jpg(jpg, res["box"], res.get("dpr") or 1) or jpg
+    return res, jpg
+
+
+def crop_jpg(jpg: bytes, box: dict, dpr: float, pad: int = 8) -> bytes | None:
+    """sips 로 캡챠 상자만 잘라 낸다(레포 .venv 엔 PIL 이 없다). 실패하면 None → 화면 전체를 보낸다."""
+    import tempfile
+    d = Path(tempfile.mkdtemp(prefix="chacap_"))
+    src, out = d / "full.jpg", d / "crop.jpg"
+    try:
+        src.write_bytes(jpg)
+        x, y = max(0, int((box["x"] - pad) * dpr)), max(0, int((box["y"] - pad) * dpr))
+        w, h = int((box["width"] + 2 * pad) * dpr), int((box["height"] + 2 * pad) * dpr)
+        r = subprocess.run(["sips", "-c", str(h), str(w), "--cropOffset", str(y), str(x), str(src), "--out", str(out)],
+                           capture_output=True, text=True, timeout=30)
+        return out.read_bytes() if r.returncode == 0 and out.exists() else None
+    except Exception:
+        return None
+    finally:
+        for f in (src, out):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+        try:
+            d.rmdir()
+        except OSError:
+            pass
 
 
 def type_answer(tid, match, answer: str) -> dict:
