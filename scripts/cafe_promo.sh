@@ -69,6 +69,7 @@ const d=await p.evaluate(()=>{
 });
 console.log('@@JSON@@'+JSON.stringify(d));
 " 2>/dev/null | grep '^@@JSON@@' | sed 's/^@@JSON@@//' > "$W/post.json"
+  for _ in 1 2 3; do ~/.claude/tools/screen/aside.sh closeend "tistory.com/$PID" >/dev/null 2>&1; done  # 본문 읽은 블로그 탭도 닫는다
   [ -s "$W/post.json" ] || { echo "✗ 발행글에서 본문을 못 읽었다: $URL"; rm -rf "$W"; exit 1; }
   python3 -c "
 import json,sys
@@ -267,6 +268,7 @@ console.log('DRYINFO='+JSON.stringify(info));
   "$A" shot "$TAB" "$SHOT" >/dev/null 2>&1 && echo "  [DRY editor] 스크린샷 $SHOT"
   echo "  [DRY editor] 등록은 누르지 않았다 — 편집기 탭을 닫는다"
   for _ in 1 2 3; do "$A" closeend "subdued20club" >/dev/null 2>&1; done
+  for _ in 1 2 3; do "$A" closeend "subdued20club/RaxJ" >/dev/null 2>&1; "$A" closeend "subdued20club" >/dev/null 2>&1; done  # 띄운 탭은 닫는다(대표님 11/20)
   rm -rf "$W"; exit 0
 fi
 
@@ -297,5 +299,6 @@ let fl=null; for(let i=0;i<8;i++){ fl=p.frames().find(f=>/bbs_list/.test(f.url()
 const rows=await fl.evaluate(()=>[...document.querySelectorAll('tr')].map(tr=>tr.innerText.replace(/\s+/g,' ').trim()).filter(r=>/^\d{6}/.test(r)).slice(0,3));
 rows.forEach(r=>console.log('  ', r.slice(0,100)));
 " 2>&1 | grep -v '^\[' | sed 's/^/  8) /'
+for _ in 1 2 3; do "$A" closeend "subdued20club/RaxJ" >/dev/null 2>&1; "$A" closeend "subdued20club" >/dev/null 2>&1; done  # 띄운 탭은 닫는다(대표님 11/20)
 rm -rf "$W"
 echo "완료."
