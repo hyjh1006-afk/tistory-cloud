@@ -2,7 +2,8 @@
 """맛집 후기 1편을 티스토리 「맛집」 카테고리에 공개 발행한다 (Aside repl). 진입점 scripts/matjip_post.sh.
 
 입력 JSON: {"title": "...", "html": "<p>…</p><p>[[IMG1]]</p>…<p>[[PLACE]]</p>", "images": ["/abs/1.jpg", ...], "category": "맛집",
-           "place": {"query": "리샨 여의도점", "match": "리샨"}}   ← place 는 선택. [[PLACE]] 자리에 툴바 「장소」 카드(카카오맵 연결)
+           "place": {"query": "리샨 여의도점", "match": "리샨"},   ← place 는 선택.
+           "coupang": [{"word": "짬뽕", "keyword": "짬뽕 밀키트"}]}   ← 선택. 본문 단어에 쿠팡파트너스 링크(2~4개) [[PLACE]] 자리에 툴바 「장소」 카드(카카오맵 연결)
   - 사진 자리는 본문에 <p>[[IMGn]]</p> 로 둔다(n 은 images 의 1부터). 사진은 matjip.sh export 가 만든 것(위치 정보 지운 JPEG).
   - "at": "YYYY-MM-DD HH:MM" 를 넣으면 예약 발행(publish_waiting 과 같은 방식).
 
@@ -266,9 +267,49 @@ return await P.evaluate(async (D) => {{
     return pw.repl(body)[0]
 
 
+def add_coupang(html: str, items: list[dict]) -> str:
+    """맛집 후기 본문 단어에 쿠팡파트너스 링크(대표님 11/21 「맛집 후기에도 달자」 — 괴담과 같은 방식, 고지 문구 없음).
+    items: [{"word": 본문에 그대로 있는 단어, "keyword": 쿠팡 검색어}] — 단어는 루틴(클로드)이 고른다.
+    「📍 위치」 이후(지도·장소 카드·가게 정보)와 제목(h3)에는 걸지 않는다. 실패해도 원문 그대로."""
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from src.coupang_links import _coupang_keys, search_product_url, _link_word_in_html
+    except Exception as exc:
+        log(f"  · 쿠팡 모듈 못 읽음 — 링크 생략: {exc}")
+        return html
+    keys = _coupang_keys()
+    if not keys:
+        log("  · 쿠팡 키 없음 — 링크 생략")
+        return html
+    cut = html.find("<h3>📍")
+    body, tail = (html[:cut], html[cut:]) if cut >= 0 else (html, "")
+    done = []
+    for it in items[:4]:
+        word, kw = str(it.get("word", "")).strip(), str(it.get("keyword") or it.get("word") or "").strip()
+        if not word or word not in re.sub(r"<[^>]+>", "", body):
+            log(f"  · 쿠팡: 본문에 「{word}」 없음 — 건너뜀")
+            continue
+        try:
+            url = search_product_url(kw, keys)
+        except Exception as exc:
+            log(f"  · 쿠팡 검색 실패({kw}): {exc}")
+            continue
+        if not url:
+            continue
+        body, ok = _link_word_in_html(body, word, url)
+        if ok:
+            done.append(f"{word}→{kw}")
+    log(f"  쿠팡 링크 {len(done)}개: {', '.join(done) or '-'}")
+    return body + tail
+
+
 def run(path: str, dry: bool) -> int:
     d = json.loads(Path(path).read_text(encoding="utf-8"))
     it = {"title": d["title"].strip(), "cat": d.get("category", "맛집"), "at": d.get("at"), "html": d["html"]}
+    if d.get("coupang"):
+        it["html"] = add_coupang(it["html"], d["coupang"])
     imgs = d.get("images", [])
     holders = sorted(set(int(x) for x in re.findall(r"\[\[IMG(\d+)\]\]", it["html"])))
     if holders != list(range(1, len(imgs) + 1)):
