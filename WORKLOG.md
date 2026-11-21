@@ -448,3 +448,5 @@
 ## 2026-11-21
 - [맛집 쿠팡 링크] 대표님 「맛집 후기에도 달자」 → `matjip_post.py add_coupang`: post.json `coupang:[{word,keyword}]` 단어 첫 등장에 쿠팡 링크(괴담 `src/coupang_links.py` 의 검색·삽입 재사용, 고지 문구 없음). 「📍 위치」 아래·h3 에는 안 건다. 단어는 루틴이 고른다(Gemini 안 씀). 이미 올린 /251~/254 는 소급 안 함.
 - [사실] 쿠팡 키는 `threads-kitchen/.env` 가 이제 없고, `src/coupang_links.py` 의 로컬 대비 경로 `Blogger_auto/coupang_keys.txt` 에서 읽힌다(괴담도 같음). 시험 검색 2건 성공.
+- [맛집 쿠팡 소급] 대표님 「이미 올라간 맛집 후기도 수정」 → /251~/254 에 글마다 3개씩(깍두기·국자·냄비 / 연어사시미·떡볶이·소주잔 / 짬뽕·탕수육·깐풍기 / 라멘·다진 마늘·청양고추). 가게 이름 속 단어(「항아리갈비탕」의 갈비탕)는 피함. 공개 페이지 각 3개 확인.
+- [방법] 올린 글에 링크 추가: 편집기에서 단어 범위 `setRng` → `ed.execCommand('mceInsertLink', false, {href, target:'_blank', rel:'noopener sponsored'})` → 캐럿을 문단 끝에 두고 **진짜 키(공백 입력 → Backspace)** 로 편집기 상태를 갱신 → 저장. 확인은 편집기 재열기. 도중 티스토리 로그인이 풀려 카카오 간편로그인(저장된 계정 한 번 클릭)으로 복구.
