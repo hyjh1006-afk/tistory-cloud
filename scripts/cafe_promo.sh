@@ -56,6 +56,8 @@ const d=await p.evaluate(()=>{
   const lines=[];
   let skip=false;
   raw.forEach(l=>{
+    // 쿠팡 고지 상자(티스토리 글 맨 위, 2026-11-22~)는 카페로 안 옮긴다 — 카페 글엔 쿠팡 링크가 안 따라가서 고지가 거짓이 된다
+    if(/쿠팡 파트너스 활동의 일환으로/.test(l)) return;
     if(/^\[?\s*해설\s*\]?$/.test(l)){ skip=true; return; }
     if(skip){ if(/^원문 링크\s*:/.test(l)) skip=false; else return; }
     lines.push(l);
