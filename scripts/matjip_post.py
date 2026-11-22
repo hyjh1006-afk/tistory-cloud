@@ -371,6 +371,9 @@ def run(path: str, dry: bool) -> int:
     it = {"title": d["title"].strip(), "cat": d.get("category", "맛집"), "at": d.get("at"), "html": d["html"]}
     if d.get("coupang"):
         it["html"] = add_coupang(it["html"], d["coupang"])
+    nb = d.get("not_before")            # 하루 새 글 한도에 걸린 글 — 그날 전엔 안 올린다(11/22: 하루 6번째 글이 캡챠 통과 뒤에도 안 생김)
+    if nb and time.strftime("%Y-%m-%d") < nb:
+        raise Stop(GATE, f"not_before {nb} — 오늘은 올리지 않음(하루 새 글 한도)")
     imgs = d.get("images", [])
     edit_id = d.get("edit_id")          # 있으면 새 글이 아니라 그 글을 고친다(open_edit)
     n_figs = len(imgs) + len(set(re.findall(r"\[\[KEEP(\d+)\]\]", it["html"])))

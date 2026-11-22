@@ -323,6 +323,11 @@ def cmd_collect(a) -> int:
                     changed = True
             if v.get("answers") and v["status"] == "asked":
                 v["status"] = "answered"
+                # 대표님 11/22 「열심히 답장보내놨는데 왜 인식안되지」 — 받았다는 걸 텔레그램으로 바로 알린다
+                try:
+                    tg.send(f"{Q_MARK} 답 받았어요 · {v['from']} — 이걸로 후기 쓸게요 ✍️")
+                except Exception:
+                    pass
         if changed:
             save_state(st)
             quiet_until = time.time() + 120

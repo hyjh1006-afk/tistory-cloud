@@ -38,7 +38,7 @@
 - 도구: `scripts/matjip.sh`(scan·ask·collect·export·posted·skip, 사용법은 matjip.py 머리말) · `scripts/matjip_post.sh <글.json>`(사진 여러 장 발행, 종료코드는 publish_waiting 과 같음).
 - **데이터는 레포 밖 `~/.local/share/oddo-matjip/`** — 이 레포는 공개라 사진·좌표·대표님 답·원고를 절대 넣지 않는다. 사진은 export 때 위치 등 메타데이터를 지운 JPEG 로만 올린다.
 - 텔레그램 봇은 CHACAP 과 같이 쓴다 → 누가 getUpdates 로 받든 공용 일지 `~/.local/share/oddo-tg/inbox.jsonl`(`scripts/tg_inbox.py`)에 먼저 적는다. 맛집 질문은 「🍽」로 시작하고, CHACAP 은 그 질문에 단 답장을 캡챠 답으로 쓰지 않는다.
-- 대표님이 날짜를 집어 준 옛 방문은 `matjip.sh scan --date YYYY-MM-DD [--date …]`(찍은 날짜로 고르고 체크포인트는 안 움직인다). 그날 찍은 다른 사진(간식·피자 등)도 방문으로 잡히니 집어 준 곳만 남기고 `skip`. 이렇게 대표님이 채팅으로 집어 준 방문도 **텔레그램 질문(`ask`)을 먼저 보내고 답을 반영해** 올린다(대표님 11/22).
+- 대표님이 날짜를 집어 준 옛 방문은 `matjip.sh scan --date YYYY-MM-DD [--date …]`(찍은 날짜로 고르고 체크포인트는 안 움직인다). 그날 찍은 다른 사진(간식·피자 등)도 방문으로 잡히니 집어 준 곳만 남기고 `skip`. 이렇게 대표님이 채팅으로 집어 준 방문도 **텔레그램 질문(`ask`)을 먼저 보내고 답을 반영해** 올린다(대표님 11/22). 식사 뒤 몇 시간 안의 카페 사진은 그 식사 글에 같이 넣는다(대표님 11/22, 예약작업 SKILL 2-1).
 - 사진 앱이 꺼져 있으면 보관함이 iCloud 와 안 맞춰진다 → `scan` 이 뒤에서 열고 동기화를 기다린 뒤 닫는다. 새 사진은 원본이 맥에 없다(최적화 저장) → `export` 가 사진 앱 AppleScript `export … with using originals` 로 받는다.
 - 하루 새 글 한도(약 5편): 괴담이 홀수 날 15시에 4편 예약 → 맛집은 홀수 날 1편·짝수 날 3편까지.
 ## 탭 뒷정리 (2026-11-20 대표님)
