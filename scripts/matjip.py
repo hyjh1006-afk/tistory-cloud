@@ -156,10 +156,15 @@ def cmd_scan(a) -> int:
     opened = sync_photos() if not a.no_sync else False
     try:
         con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-        rows = con.execute(
-            "select ZUUID, ZDATECREATED, ZADDEDDATE, ZLATITUDE, ZLONGITUDE, ZFILENAME, ZKINDSUBTYPE from ZASSET "
-            "where ZTRASHEDSTATE=0 and ZHIDDEN=0 and ZKIND=0 and ZADDEDDATE > ? order by ZDATECREATED",
-            (to_apple(st["checkpoint"]),)).fetchall()
+        q = ("select ZUUID, ZDATECREATED, ZADDEDDATE, ZLATITUDE, ZLONGITUDE, ZFILENAME, ZKINDSUBTYPE from ZASSET "
+             "where ZTRASHEDSTATE=0 and ZHIDDEN=0 and ZKIND=0 and ")
+        if a.date:
+            # 대표님이 날짜를 집어 주신 옛 방문 — 찍은 날짜로 고르고 체크포인트는 건드리지 않는다
+            conds = " or ".join("(ZDATECREATED >= ? and ZDATECREATED < ?)" for _ in a.date)
+            args = [x for d in a.date for x in (to_apple(d + " 00:00"), to_apple(d + " 00:00") + 86400)]
+            rows = con.execute(q + f"({conds}) order by ZDATECREATED", args).fetchall()
+        else:
+            rows = con.execute(q + "ZADDEDDATE > ? order by ZDATECREATED", (to_apple(st["checkpoint"]),)).fetchall()
     finally:
         if opened:
             quit_photos()
@@ -219,7 +224,7 @@ def cmd_scan(a) -> int:
              "scenes": agg.get("1500", [])[:8], "sheet": str(sheet) if sheet else None}
         st["visits"][vid] = v
         new = [x for x in new if x["id"] != vid] + [v]
-    if max_added is not None:
+    if max_added is not None and not a.date:
         st["checkpoint"] = max(st["checkpoint"], apple(max_added).strftime("%Y-%m-%d %H:%M"))
     save_state(st)
     pending = [v for v in st["visits"].values() if v["status"] in ("new", "asked", "answered")]
@@ -522,7 +527,7 @@ def cmd_posted(a) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("scan"); s.add_argument("--no-sync", action="store_true"); s.set_defaults(f=cmd_scan)
+    s = sub.add_parser("scan"); s.add_argument("--no-sync", action="store_true"); s.add_argument("--date", action="append", help="YYYY-MM-DD (찍은 날짜, 여러 번 가능)"); s.set_defaults(f=cmd_scan)
     s = sub.add_parser("status"); s.set_defaults(f=cmd_status)
     s = sub.add_parser("skip"); s.add_argument("id"); s.add_argument("why", nargs="*"); s.set_defaults(f=cmd_skip)
     s = sub.add_parser("ask"); s.add_argument("id"); s.add_argument("questions"); s.add_argument("--photos"); s.set_defaults(f=cmd_ask)

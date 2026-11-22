@@ -105,9 +105,13 @@ return await P.evaluate(async (A) => {{
   const before = new Set([...doc.querySelectorAll('figure img')].map(i => i.getAttribute('src')));
   const btn = [...document.querySelectorAll('.mce-btn')].find(e => e.getAttribute('aria-label') === '첨부' && e.offsetParent !== null);
   if (!btn) return {{ok:false, why:'첨부 버튼 없음'}};
-  (btn.querySelector('button') || btn).click();
-  await new Promise(r => setTimeout(r, 1500));
-  const item = [...document.querySelectorAll('.mce-menu-item')].find(e => (e.innerText || '').trim() === '사진' && e.offsetParent !== null);
+  // 첨부 메뉴가 가끔 안 열리거나(직전 메뉴가 열린 채면 클릭이 닫기로 먹음) 늦게 뜬다 → 몇 번 다시 누른다(11/22 사진 8장 글에서 두 번 실패)
+  let item = null;
+  for (let k = 0; k < 4 && !item; k++) {{
+    (btn.querySelector('button') || btn).click();
+    await new Promise(r => setTimeout(r, 1500 + k * 700));
+    item = [...document.querySelectorAll('.mce-menu-item')].find(e => (e.innerText || '').trim() === '사진' && e.offsetParent !== null);
+  }}
   if (!item) return {{ok:false, why:'사진 메뉴 없음'}};
   // 「사진」은 파일 입력칸을 즉석에서 만들어 click() 한다 → 그 click 을 가로채 파일 창을 안 띄우고 그 칸을 잡는다
   let caught = null;
