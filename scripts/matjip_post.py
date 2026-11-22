@@ -526,6 +526,7 @@ def run(path: str, dry: bool) -> int:
                 log("편집기 탭은 남기지 않고 닫음(다음 회차가 다시 시도)")
             pw.close_tab(tid)
         lock.release()
+    pw.prune_shots(code == OK)
     print(f"EXIT={code}  LOG={pw.LOG_PATH}")
     return code
 

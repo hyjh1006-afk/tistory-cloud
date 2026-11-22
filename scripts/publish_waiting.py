@@ -665,6 +665,18 @@ def save_shot(shots: list[str], key: str, tag: str) -> str | None:
     return str(p)
 
 
+def prune_shots(ok: bool) -> None:
+    """확인용 스크린샷은 일회용(대표님 11/22 「진짜 일회성 사용한거니까 정리하는게 낫지」) —
+    성공한 회차 것은 바로 지우고, 실패 회차 것(원인 볼 때 씀)도 3일 지나면 지운다."""
+    now = time.time()
+    for f in LOG_DIR.glob("*.jpg"):
+        try:
+            if (ok and TS in f.name) or now - f.stat().st_mtime > 3 * 86400:
+                f.unlink()
+        except OSError:
+            pass
+
+
 # ── 본체 ────────────────────────────────────────────────────────────────
 def run(args) -> int:
     dry = args.dry_run or bool(args.fixture)
@@ -868,6 +880,7 @@ def run(args) -> int:
             print(f"DRYRUN\t{s['key']}\t{s.get('screenshot')}")
     if code == OK and not dry and any(s["result"] == "saved" for s in summary):
         notify(f"괴담 {sum(s['result'] == 'saved' for s in summary)}편 {VIS['btn']} 완료")
+    prune_shots(code == OK)
     print(f"EXIT={code}  LOG={LOG_PATH}")
     return code
 
