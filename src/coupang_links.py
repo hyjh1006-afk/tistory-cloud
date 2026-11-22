@@ -32,15 +32,7 @@ _GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 )
 
-DISCLOSURE_HTML = (
-    '<p style="font-size:11px;color:#999999;">'
-    "이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다."
-    "</p>"
-)
-
-# 고지 문구를 붙일지. 2026-08-23 사용자 지시로 끔 — 티스토리 글에는 넣지 않는다.
-# (위험은 설명했고 사용자가 감수하기로 결정. 다시 켜자고 먼저 제안하지 말 것)
-SHOW_DISCLOSURE = False
+from .disclosure import DISCLOSURE_HTML, ensure_disclosure  # noqa: E402,F401  (고지는 글 맨 위 — 2026-11-22 대표님 결정)
 
 # 상품명에서 의미 없는 수식어 (관련도 판단 시 제외)
 _STOP_WORDS = {"세트", "정품", "무료배송", "당일", "특가", "할인"}
@@ -204,7 +196,7 @@ def embed_coupang_links(
     gemini_config: dict | None = None,
     logger: logging.Logger | None = None,
 ) -> str:
-    """본문 단어 2개 이상에 쿠팡 링크를 심고, 성공 시 끝에 고지 한 줄을 붙인다.
+    """본문 단어 2개 이상에 쿠팡 링크를 심고, 성공 시 맨 위에 고지 상자를 붙인다.
     어떤 이유로든 실패하면 원본을 그대로 반환한다 (글 생성을 막지 않음)."""
     try:
         keys = _coupang_keys()
@@ -277,7 +269,7 @@ def embed_coupang_links(
 
         if linked == 0:
             return html_content
-        return result + tail + ("\n" + DISCLOSURE_HTML if SHOW_DISCLOSURE else "")
+        return ensure_disclosure(result + tail)
     except Exception as exc:
         if logger:
             logger.warning("쿠팡 링크 처리 실패 — 원본 유지: %s", exc)

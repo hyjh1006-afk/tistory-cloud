@@ -33,6 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from src.disclosure import ensure_disclosure, has_coupang  # noqa: E402,F401
 
 BLOG = "https://tester188.tistory.com"
 CDP = "http://127.0.0.1:9223"
@@ -244,7 +245,7 @@ def load_items(fixture: str | None, per_kind: int = 1) -> list[dict]:
         mode = o.get("mode")
         if mode not in CATS:          # cedar_remaster 등 다른 대기물은 이 스크립트 소관 아님
             continue
-        html = o.get("html") or ""
+        html = ensure_disclosure(o.get("html") or "")   # 쿠팡 링크가 있으면 맨 위 고지(대표님 11/22) — 이미 만들어 둔 대기 글에도
         items.append({
             "key": o["_name"], "sha": o.get("_sha"), "mode": mode, "cat": CATS[mode],
             "title": (o.get("title") or "").strip(), "html": html,
@@ -527,7 +528,8 @@ return await P.evaluate(async (BTN) => {
 
 def commit_save(tid: str, it: dict, prepared: dict) -> tuple[dict, list[str]]:
     d = {"title": it["title"], "cat": it["cat"], "edText": prepared.get("edText"),
-         "radio": VIS["radio"], "others": VIS["others"], "btn": want_btn(it), "at": it.get("at")}
+         "radio": VIS["radio"], "others": VIS["others"], "btn": want_btn(it), "at": it.get("at"),
+         "disc": has_coupang(it["html"])}   # 쿠팡 링크 글이면 첫 블록이 고지 상자여야 누른다(대표님 11/22)
     body = attach_js(tid) + f"""
 const D = {json.dumps(d, ensure_ascii=False)};
 // 클릭 직전, 같은 틱에서 전부 다시 확인한다. 하나라도 어긋나면 누르지 않는다.
@@ -543,6 +545,7 @@ const pre = await P.evaluate((D) => {{
     visibility: !!want && want.checked && othersOff,
     button: !!btn && btn.textContent.trim() === D.btn && !btn.disabled && btn.offsetParent !== null,
   }};
+  if (D.disc) {{ const f = tinymce.get('editor-tistory').getBody().firstElementChild; chk.disc = !!f && f.tagName === 'BLOCKQUOTE' && /쿠팡 파트너스 활동/.test(f.textContent); }}
   if (D.at) {{   // 예약값을 못 잡았는데 누르면 「지금 공개 발행」이 된다(2026-09-04 cedar 에서 당함) — 같은 틱에 다시 본다
     const db = [...document.querySelectorAll('button')].find(b => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(b.textContent.trim()) && b.offsetParent !== null);
     const [wd, hm] = D.at.split(' '); const [HH, MM] = hm.split(':');

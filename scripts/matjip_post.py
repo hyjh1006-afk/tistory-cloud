@@ -291,6 +291,7 @@ const s3 = await P.evaluate(() => {{
     figs: [...ed.getBody().querySelectorAll('figure img')].filter(i => /kakaocdn|daumcdn|tistory/.test(i.getAttribute('src') || '')).length,
     holders: (ed.getBody().innerHTML.match(/\\[\\[(IMG\\d+|PLACE)\\]\\]/g) || []).length,
     place: !!ed.getBody().querySelector('figure[data-ke-type=location]'),
+    disc: (() => {{ const f = ed.getBody().firstElementChild; return !!f && f.tagName === 'BLOCKQUOTE' && /쿠팡 파트너스 활동/.test(f.textContent); }})(),
     tags: ((document.querySelector('.editor_tag') || {{}}).innerText || '').replace(/#/g, '').trim(),
     open20: !!document.getElementById('open20')?.checked, open0: !!document.getElementById('open0')?.checked, open15: !!document.getElementById('open15')?.checked,
     btnText: btn ? btn.textContent.trim() : null, btnDisabled: btn ? btn.disabled : null,
@@ -328,7 +329,7 @@ return await P.evaluate(async (D) => {{
 
 
 def add_coupang(html: str, items: list[dict]) -> str:
-    """맛집 후기 본문 단어에 쿠팡파트너스 링크(대표님 11/21 「맛집 후기에도 달자」 — 괴담과 같은 방식, 고지 문구 없음).
+    """맛집 후기 본문 단어에 쿠팡파트너스 링크(대표님 11/21 「맛집 후기에도 달자」 — 괴담과 같은 방식, 고지는 run 에서 글 맨 위에).
     items: [{"word": 본문에 그대로 있는 단어, "keyword": 쿠팡 검색어}] — 단어는 루틴(클로드)이 고른다.
     「📍 위치」 이후(지도·장소 카드·가게 정보)와 제목(h3)에는 걸지 않는다. 실패해도 원문 그대로."""
     root = str(Path(__file__).resolve().parent.parent)
@@ -371,6 +372,7 @@ def run(path: str, dry: bool) -> int:
     it = {"title": d["title"].strip(), "cat": d.get("category", "맛집"), "at": d.get("at"), "html": d["html"]}
     if d.get("coupang"):
         it["html"] = add_coupang(it["html"], d["coupang"])
+    it["html"] = pw.ensure_disclosure(it["html"])   # 쿠팡 링크가 있으면 글 맨 위 고지 상자(대표님 11/22, 공정위 심사지침 Ⅴ.6)
     nb = d.get("not_before")            # 하루 새 글 한도에 걸린 글 — 그날 전엔 안 올린다(11/22: 하루 6번째 글이 캡챠 통과 뒤에도 안 생김)
     if nb and time.strftime("%Y-%m-%d") < nb:
         raise Stop(GATE, f"not_before {nb} — 오늘은 올리지 않음(하루 새 글 한도)")
@@ -460,6 +462,8 @@ def run(path: str, dry: bool) -> int:
             "공개": st.get("open20") and not st.get("open0") and not st.get("open15") and st.get("btnText") == vis["btn"] and st.get("btnDisabled") is False,
             "태그 없음": st.get("tags", "x") == "",
         }
+        if pw.has_coupang(it["html"]):
+            g["고지 맨 위"] = bool(st.get("disc"))      # 쿠팡 링크 글은 첫 블록이 고지 상자여야 저장(대표님 11/22)
         if d.get("place") or "[[KEEPLOC]]" in it["html"]:
             g["장소 카드"] = bool(st.get("place"))
         if it["at"]:
