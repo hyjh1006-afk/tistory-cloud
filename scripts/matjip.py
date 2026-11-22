@@ -20,6 +20,10 @@
   export <id> <번호...>  고른 사진의 원본을 사진 앱에서 받아 1400px JPEG 로 줄이고 위치 등 메타데이터를 지운다 → DATA/visits/<id>/img/
   near <id> [키워드...]  사진 위치를 지도 가운데 두고 카카오맵 검색(기본 「음식점」) — 가게 이름을 위치로 찾는다(대표님 11/20 「식당 이름은 사진 위치 보고 파악해서」)
   map <id> --label 이름  그 위치의 작은 지도 그림(OpenStreetMap, 출처 표기) → img/<id>_map.jpg
+  clip <id>              그 방문 시간·위치의 영상을 찾아 원본을 받고, 영상마다 장면 6컷 확인판(vids/v<n>_sheet.jpg)을 만든다
+  clip <id> <n> [--start 초] [--len 초]
+                         n번 영상을 소리 없는 반복 움짤(GIF, 폭 480, 최대 6초)로 → img/<id>_v<n>.gif — 본문에 사진처럼 넣는다
+                         (대표님 11/22 「거기서 찍은 영상도 있으면 같이 올리려면」)
   posted <id> <주소>     올린 뒤 표시 + 사진 원본·내보낸 사본 삭제(대표님 11/13 「업로드 끝나면 용량 정리, 백업 없이」)
 """
 from __future__ import annotations
@@ -125,6 +129,23 @@ def derivative(u: str) -> str | None:
     return fs[0] if fs else None
 
 
+VID_PAD_MIN = 15                    # 방문 사진 앞뒤 이만큼 안에 찍힌 영상까지 그 방문 것으로 본다
+
+
+def find_videos(con, v: dict) -> list[dict]:
+    """방문(첫 사진~끝 사진 ± VID_PAD_MIN, 방문 좌표 GAP_M 안)에 찍힌 영상. 위치 없는 영상은 어디 건지 몰라 뺀다."""
+    t0 = dt.datetime.fromisoformat(v["t0"]).timestamp() - APPLE_EPOCH.timestamp() - VID_PAD_MIN * 60
+    t1 = dt.datetime.fromisoformat(v["t1"]).timestamp() - APPLE_EPOCH.timestamp() + VID_PAD_MIN * 60
+    out = []
+    for u, cr, dur, la, lo in con.execute(
+            "select ZUUID, ZDATECREATED, ZDURATION, ZLATITUDE, ZLONGITUDE from ZASSET where ZTRASHEDSTATE=0 and ZHIDDEN=0 and ZKIND=1 "
+            "and ZDATECREATED >= ? and ZDATECREATED < ? order by ZDATECREATED", (t0, t1)):
+        if la is None or la < -90 or dist_m((la, lo), (v["lat"], v["lon"])) > GAP_M:
+            continue
+        out.append({"uuid": u, "t": apple(cr).strftime("%H:%M:%S"), "dur": round(dur or 0, 1)})
+    return out
+
+
 def psi_tags(uuids: list[str]) -> dict[str, dict]:
     """사진 앱 검색 색인에서 장소 이름(1700)·장소 분류(1701)·도로명(2)·동(6)·시(5). 새 사진은 색인이 늦을 수 있다."""
     import struct
@@ -222,6 +243,7 @@ def cmd_scan(a) -> int:
              "place_hint": agg.get("1700", []), "place_kind": agg.get("1701", []),
              "addr_hint": " ".join((agg.get("5", [])[:1] + agg.get("6", [])[:1] + agg.get("2", [])[:1])),
              "scenes": agg.get("1500", [])[:8], "sheet": str(sheet) if sheet else None}
+        v["videos"] = find_videos(con, v)
         st["visits"][vid] = v
         new = [x for x in new if x["id"] != vid] + [v]
     if max_added is not None and not a.date:
@@ -232,7 +254,7 @@ def cmd_scan(a) -> int:
     for v in pending:
         print(f"VISIT\t{v['id']}\t{v['status']}\t{v['from']}~{v['to']}\t{len(v['uuids'])}장\t"
               f"장소힌트={','.join(v['place_hint'][:3]) or '-'}\t분류={','.join(v['place_kind'][:3]) or '-'}\t"
-              f"주소={v['addr_hint'] or '-'}\t좌표={v['lat']},{v['lon']}\t장면={','.join(v['scenes'][:5])}\tSHEET={v['sheet']}")
+              f"주소={v['addr_hint'] or '-'}\t좌표={v['lat']},{v['lon']}\t장면={','.join(v['scenes'][:5])}\t영상={len(v.get('videos', []))}개\tSHEET={v['sheet']}")
     return 0
 
 
@@ -398,6 +420,75 @@ def cmd_export(a) -> int:
     return 0
 
 
+def export_original(u: str, dst_dir: Path) -> Path | None:
+    before = set(os.listdir(dst_dir))
+    subprocess.run(["osascript", "-e", f'tell application "Photos" to export {{media item id "{u}/L0/001"}} to POSIX file "{dst_dir}" with using originals'],
+                   capture_output=True, text=True, timeout=600)
+    new = sorted(set(os.listdir(dst_dir)) - before)
+    return dst_dir / new[0] if new else None
+
+
+def cmd_clip(a) -> int:
+    st = load_state()
+    v = st["visits"][a.id]
+    vids = vdir(a.id) / "vids"
+    vids.mkdir(parents=True, exist_ok=True)
+    if a.n is None:
+        con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+        v["videos"] = find_videos(con, v)
+        save_state(st)
+        if not v["videos"]:
+            print("VIDEOS=0")
+            return 0
+        opened = not photos_running()
+        try:
+            for n, x in enumerate(v["videos"], 1):
+                src = next(iter(sorted(vids.glob(f"v{n}.m*"))), None)
+                if not src:
+                    tmp = vids / f"tmp{n}"
+                    shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir()
+                    got = export_original(x["uuid"], tmp)
+                    if not got:
+                        print(f"  ✗ {n}번 영상 원본을 못 받음")
+                        continue
+                    src = vids / f"v{n}{got.suffix.lower()}"
+                    got.rename(src); shutil.rmtree(tmp, ignore_errors=True)
+                sheet = vids / f"v{n}_sheet.jpg"
+                # 장면 6컷(얼굴·사람이 나오는지, 어디를 자를지 보려고)
+                subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(src), "-vf",
+                                f"fps=6/{max(x['dur'], 0.5)},scale=360:-2,tile=6x1", "-frames:v", "1", str(sheet)], capture_output=True)
+                print(f"VIDEO\t{n}\t{x['t']}\t{x['dur']}초\tSHEET={sheet if sheet.exists() else '-'}")
+        finally:
+            if opened:
+                quit_photos()
+        return 0
+    x = v["videos"][a.n - 1]
+    src = next(iter(sorted(vids.glob(f"v{a.n}.m*"))), None)
+    if not src:
+        print(f"  ✗ 먼저 clip {a.id} 로 원본을 받으세요")
+        return 1
+    length = min(a.len or x["dur"], 6.0, max(x["dur"] - a.start, 0.5))
+    out = vdir(a.id) / "img"; out.mkdir(parents=True, exist_ok=True)
+    gif = out / f"{a.id}_v{a.n}.gif"
+    # 소리 없는 반복 GIF — 팔레트를 영상에서 뽑아 번짐을 줄이고, 10fps·폭 480 으로 크기를 누른다(11/22 대하 4.5초: 540·12fps 7.8MB → 480·10fps 5.2MB). GIF 에는 위치 정보가 안 실린다.
+    vf = f"fps=10,scale={a.width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5"
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", str(a.start), "-t", f"{length:.2f}", "-i", str(src),
+                        "-vf", vf, "-loop", "0", str(gif)], capture_output=True, text=True)
+    if r.returncode or not gif.exists():
+        print(f"  ✗ 움짤 변환 실패: {r.stderr[:200]}")
+        return 1
+    mb = gif.stat().st_size / 1e6
+    if mb > 9:
+        print(f"  ✗ 움짤이 너무 큼 {mb:.1f}MB — --len 을 줄이거나 --width 를 낮추세요")
+        return 1
+    v.setdefault("clips", [])
+    if str(gif) not in v["clips"]:
+        v["clips"].append(str(gif))
+    save_state(st)
+    print(f"CLIP\t{gif}\t{length:.1f}초\t{mb:.1f}MB")
+    return 0
+
+
 # ── 가게 찾기·위치 지도 ──────────────────────────────────────────────────
 NEAR_JS = r"""
 const A = __ARGS__;
@@ -541,6 +632,8 @@ def main() -> int:
     s = sub.add_parser("export"); s.add_argument("id"); s.add_argument("nums", type=int, nargs="+"); s.set_defaults(f=cmd_export)
     s = sub.add_parser("posted"); s.add_argument("id"); s.add_argument("url"); s.set_defaults(f=cmd_posted)
     s = sub.add_parser("near"); s.add_argument("id"); s.add_argument("kws", nargs="*"); s.set_defaults(f=cmd_near)
+    s = sub.add_parser("clip"); s.add_argument("id"); s.add_argument("n", type=int, nargs="?"); s.add_argument("--start", type=float, default=0.0)
+    s.add_argument("--len", type=float); s.add_argument("--width", type=int, default=480); s.set_defaults(f=cmd_clip)
     s = sub.add_parser("map"); s.add_argument("id"); s.add_argument("--label", default=""); s.add_argument("--zoom", type=int, default=17); s.set_defaults(f=cmd_map)
     a = ap.parse_args()
     return a.f(a)

@@ -4,7 +4,7 @@
 입력 JSON: {"title": "...", "html": "<p>…</p><p>[[IMG1]]</p>…<p>[[PLACE]]</p>", "images": ["/abs/1.jpg", ...], "category": "맛집",
            "place": {"query": "리샨 여의도점", "match": "리샨"},   ← place 는 선택.
            "coupang": [{"word": "짬뽕", "keyword": "짬뽕 밀키트"}]}   ← 선택. 본문 단어에 쿠팡파트너스 링크(2~4개) [[PLACE]] 자리에 툴바 「장소」 카드(카카오맵 연결)
-  - 사진 자리는 본문에 <p>[[IMGn]]</p> 로 둔다(n 은 images 의 1부터). 사진은 matjip.sh export 가 만든 것(위치 정보 지운 JPEG).
+  - 사진 자리는 본문에 <p>[[IMGn]]</p> 로 둔다(n 은 images 의 1부터). 사진은 matjip.sh export 가 만든 것(위치 정보 지운 JPEG). 영상은 matjip.sh clip 이 만든 움짤 GIF 도 같은 자리로 넣는다.
   - "at": "YYYY-MM-DD HH:MM" 를 넣으면 예약 발행(publish_waiting 과 같은 방식).
 
 사진 올리는 길(2026-11-20 실측): aside repl 은 세션 폴더 밖 파일을 못 읽고(fs·setInputFiles 둘 다), CLI 는 호출마다 세션 폴더가 바뀐다.
@@ -181,7 +181,7 @@ return await P.evaluate(async (A) => {{
   if (!inp) return {{ok:false, why:'파일 입력칸 없음'}};
   const bin = atob(window.__mj[A.key]);
   const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  const dt = new DataTransfer(); dt.items.add(new File([u8], A.fname, {{type:'image/jpeg'}}));
+  const dt = new DataTransfer(); dt.items.add(new File([u8], A.fname, {{type: /\\.gif$/i.test(A.fname) ? 'image/gif' : 'image/jpeg'}}));
   inp.files = dt.files;
   inp.dispatchEvent(new Event('change', {{bubbles:true}}));
   let fig = null;
@@ -437,7 +437,7 @@ def run(path: str, dry: bool) -> int:
             lock.touch()
             key = f"i{n}"
             push_image(tid, key, p)
-            pr = place_image(tid, n, key, f"matjip_{pw.TS}_{n}.jpg")
+            pr = place_image(tid, n, key, f"matjip_{pw.TS}_{n}{'.gif' if p.lower().endswith('.gif') else '.jpg'}")   # 영상 움짤(GIF)도 사진처럼 올린다
             log(f"  사진 {n}/{len(imgs)}: {json.dumps(pr, ensure_ascii=False)}")
             if not pr.get("ok"):
                 raise Stop(GATE, f"사진 {n} 실패: {pr.get('why')}")
