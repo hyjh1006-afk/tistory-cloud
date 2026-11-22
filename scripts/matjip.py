@@ -310,6 +310,7 @@ def cmd_collect(a) -> int:
     quiet_until = None
     while True:
         tg.peek()                                   # 새 메시지를 일지에 적기만 한다(확인 처리 안 함 — CHACAP 몫)
+        st = load_state()                           # 기다리는 동안 scan·ask 가 state 를 바꿀 수 있다 — 매번 새로 읽는다(11/22 오래 든 state 로 덮어써 방문 하나가 사라짐)
         msgs = tg_inbox.read_journal()
         got = match_answers(st, msgs)
         changed = False

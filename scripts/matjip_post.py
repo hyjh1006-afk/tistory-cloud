@@ -93,6 +93,62 @@ return Object.assign(s1, {{title: await P.evaluate(() => document.querySelector(
     return pw.repl(body)[0]
 
 
+def open_edit(tid: str, d: dict) -> dict:
+    """이미 올린 글(/manage/newpost/<id>) 본문을 새 원고로 바꾼다. 원래 사진·장소 카드는 다시 올리지 않고 그대로 옮긴다:
+    원고의 <p>[[KEEPn]]</p> 자리에 기존 사진(본문 순서 n번째 figure.imageblock), <p>[[KEEPLOC]]</p> 자리에 기존 장소 카드.
+    새 사진은 평소처럼 [[IMGn]] 자리 → place_image. (11/22 대표님: 「기존에 올린 글에 갈비탕 얘기도 자연스레 추가하라」)"""
+    body = pw.attach_js(tid) + f"""
+const D = {json.dumps(d, ensure_ascii=False)};
+await P.goto({json.dumps(pw.BLOG)} + '/manage/newpost/' + D.id + '?type=post&returnURL=ENTRY');
+let ready = false;
+for (let i = 0; i < 50; i++) {{
+  const u = P.url();
+  if (/auth\\/login|accounts\\.kakao\\.com/.test(u)) return {{login:false, href:u}};
+  try {{ ready = await P.evaluate(() => !!document.querySelector('#post-title-inp') && !!(window.tinymce && tinymce.get('editor-tistory')) && tinymce.get('editor-tistory').getBody().textContent.length > 50); }} catch (e) {{}}
+  if (ready) break; await sleep(400);
+}}
+if (!ready) return {{error:'편집기가 안 뜸(또는 본문이 비어 있음)', href:P.url()}};
+await sleep(2000);
+return await P.evaluate(async (D) => {{
+  const ed = tinymce.get('editor-tistory');
+  const doc = ed.getBody();
+  const title = document.querySelector('#post-title-inp').value;
+  if (title !== D.title) return {{ok:false, why:'제목이 다름: ' + title}};
+  const keep = [...doc.querySelectorAll('figure.imageblock, figure[data-ke-type=image]')];
+  const loc = doc.querySelector('figure[data-ke-type=location]');
+  if (keep.length < D.nKeep) return {{ok:false, why:'기존 사진 ' + keep.length + '장 < 필요 ' + D.nKeep}};
+  if (D.needLoc && !loc) return {{ok:false, why:'기존 장소 카드 없음'}};
+  keep.forEach(f => f.remove()); if (loc) loc.remove();
+  ed.focus();
+  doc.innerHTML = '<p><br></p>';
+  ed.selection.setCursorLocation(doc.firstChild, 0);
+  const dt = new DataTransfer();
+  dt.setData('text/html', D.html); dt.setData('text/plain', D.html.replace(/<[^>]+>/g, ''));
+  doc.dispatchEvent(new ClipboardEvent('paste', {{clipboardData: dt, bubbles: true, cancelable: true}}));
+  await new Promise(r => setTimeout(r, 1500));
+  const holder = t => [...doc.querySelectorAll('p')].find(p => p.textContent.trim() === t);
+  let moved = 0;
+  for (let n = 1; n <= keep.length; n++) {{ const h = holder('[[KEEP' + n + ']]'); if (h) {{ h.replaceWith(keep[n - 1]); moved++; }} }}
+  const hl = holder('[[KEEPLOC]]'); if (hl && loc) {{ hl.replaceWith(loc); moved++; }}
+  ed.setDirty(true); ed.fire('change');
+  return {{ok:true, moved, holders: (doc.innerHTML.match(/\\[\\[(IMG|KEEP)\\w*\\]\\]/g) || []).length}};
+}}, D);
+"""
+    return pw.repl(body)[0]
+
+
+def real_key(tid: str) -> dict:
+    """DOM 으로만 바꾼 본문은 티스토리가 옛 내용을 저장한다(11/21 실측) → 마지막 문단 끝에서 진짜 키(공백 → Backspace)."""
+    body = pw.attach_js(tid) + """
+await P.evaluate(() => { const ed = tinymce.get('editor-tistory'); const ps = [...ed.getBody().querySelectorAll('p')].filter(p => p.textContent.trim()); const last = ps[ps.length - 1]; ed.focus(); ed.selection.select(last, true); ed.selection.collapse(false); });
+await sleep(300);
+const fr = P.frameLocator('#editor-tistory_ifr');
+await P.keyboard.type(' '); await sleep(300); await P.keyboard.press('Backspace'); await sleep(500);
+return await P.evaluate(() => ({ok: true, len: tinymce.get('editor-tistory').getBody().textContent.length}));
+"""
+    return pw.repl(body)[0]
+
+
 def place_image(tid: str, n: int, key: str, fname: str) -> dict:
     body = pw.attach_js(tid) + f"""
 const A = {json.dumps({"tag": f"[[IMG{n}]]", "key": key, "fname": fname})};
@@ -287,7 +343,8 @@ def add_coupang(html: str, items: list[dict]) -> str:
     if not keys:
         log("  · 쿠팡 키 없음 — 링크 생략")
         return html
-    cut = html.find("<h3>📍")
+    m = re.search(r"<h3[^>]*>📍", html)          # <h3 data-ke-size=…>📍 도 잡는다
+    cut = m.start() if m else -1
     body, tail = (html[:cut], html[cut:]) if cut >= 0 else (html, "")
     done = []
     for it in items[:4]:
@@ -315,13 +372,15 @@ def run(path: str, dry: bool) -> int:
     if d.get("coupang"):
         it["html"] = add_coupang(it["html"], d["coupang"])
     imgs = d.get("images", [])
+    edit_id = d.get("edit_id")          # 있으면 새 글이 아니라 그 글을 고친다(open_edit)
+    n_figs = len(imgs) + len(set(re.findall(r"\[\[KEEP(\d+)\]\]", it["html"])))
     holders = sorted(set(int(x) for x in re.findall(r"\[\[IMG(\d+)\]\]", it["html"])))
     if holders != list(range(1, len(imgs) + 1)):
         raise Stop(GATE, f"자리표시 {holders} 와 사진 {len(imgs)}장이 안 맞음")
     for p in imgs:
         if not Path(p).exists():
             raise Stop(GATE, f"사진 없음: {p}")
-    log(f"=== matjip_post {'DRY-RUN' if dry else '실행'}: {it['title']} [{it['cat']}] 사진 {len(imgs)}장" + (f" 예약 {it['at']}" if it["at"] else ""))
+    log(f"=== matjip_post {'DRY-RUN' if dry else '실행'}{f' (/{edit_id} 고치기)' if edit_id else ''}: {it['title']} [{it['cat']}] 사진 {len(imgs)}장" + (f" 예약 {it['at']}" if it["at"] else ""))
     if subprocess.run([pw.ASIDE_SH, "tabs"], capture_output=True, timeout=60).returncode != 0:
         raise Stop(ASIDE_DOWN, "aside.sh tabs 실패")
     lock, tid, backup, parked, clicked, keep_tab, code = pw.EditorLock(), None, None, False, False, False, OK
@@ -344,12 +403,12 @@ def run(path: str, dry: bool) -> int:
             raise Stop(LOGIN, f"로그인 필요 ({pf.get('href') or pf.get('why')})")
         if it["cat"] not in pf.get("cats", []):
             raise Stop(GATE, f"카테고리 '{it['cat']}' 가 블로그에 없음")
-        if pf["found"]["post"]["hits"]:
+        if pf["found"]["post"]["hits"] and not edit_id:
             h = pf["found"]["post"]["hits"][0]
             log(f"  · 같은 제목 글이 이미 있음 → 올리지 않음: /{h['id']} {h['visibility']}")
             print(f"ALREADY\t/{h['id']}\t{h.get('permalink')}")
             return OK
-        auto = pf.get("autosave")
+        auto = None if edit_id else pf.get("autosave")
         if isinstance(auto, str):
             raise Stop(GATE, "자동저장 상태 읽기 실패: " + auto)
         if auto is not None:
@@ -360,7 +419,12 @@ def run(path: str, dry: bool) -> int:
                 raise Stop(GATE, "자동저장 슬롯을 못 비움")
             parked = True
         lock.touch()
-        r = open_editor(tid, {"title": it["title"], "html": it["html"], "cat": it["cat"]})
+        if edit_id:
+            n_keep = len(set(re.findall(r"\[\[KEEP(\d+)\]\]", it["html"])))
+            r = open_edit(tid, {"id": edit_id, "title": it["title"], "html": it["html"], "nKeep": n_keep, "needLoc": "[[KEEPLOC]]" in it["html"]})
+            log(f"  기존 글 /{edit_id} 편집: {json.dumps(r, ensure_ascii=False)[:200]}")
+        else:
+            r = open_editor(tid, {"title": it["title"], "html": it["html"], "cat": it["cat"]})
         log(f"  편집기: {json.dumps(r, ensure_ascii=False)[:200]}")
         if r.get("login") is False:
             raise Stop(LOGIN, "로그인 필요")
@@ -380,18 +444,20 @@ def run(path: str, dry: bool) -> int:
             log(f"  장소 카드: {json.dumps(pc, ensure_ascii=False)}")
             if not pc.get("ok"):
                 raise Stop(GATE, f"장소 카드 실패: {pc.get('why')} {pc.get('all', '')}")
+        if edit_id:
+            log(f"  진짜 키: {json.dumps(real_key(tid), ensure_ascii=False)}")
         vis = pw.VIS
         st, shots = open_layer(tid, {"radio": vis["radio"], "at": it["at"]})
         shot = pw.save_shot(shots, "matjip", "dry" if dry else "pre")
         g = {
             "제목": st.get("title") == it["title"],
             "카테고리": st.get("cat") == it["cat"],
-            f"사진 {len(imgs)}장": st.get("figs") == len(imgs) and st.get("holders") == 0,
+            f"사진 {n_figs}장": st.get("figs") == n_figs and st.get("holders") == 0,
             "본문 있음": (st.get("edText") or 0) > 200,
             "공개": st.get("open20") and not st.get("open0") and not st.get("open15") and st.get("btnText") == vis["btn"] and st.get("btnDisabled") is False,
             "태그 없음": st.get("tags", "x") == "",
         }
-        if d.get("place"):
+        if d.get("place") or "[[KEEPLOC]]" in it["html"]:
             g["장소 카드"] = bool(st.get("place"))
         if it["at"]:
             wd, hm = it["at"].split(" ")
@@ -425,11 +491,11 @@ def run(path: str, dry: bool) -> int:
         if res.get("state") != "navigated":
             keep_tab = True
             raise Stop(UNVERIFIED, f"저장 결과 불명({res.get('state')}) — 재시도 금지, 사람 확인")
-        v = verify(tid, it, len(imgs))
+        v = verify(tid, it, n_figs)
         log(f"  확인: {json.dumps(v, ensure_ascii=False)}")
         want = "RESERVED_PUBLIC" if it["at"] else "PUBLIC"
         ok = v.get("found") and v.get("visibility") == want and str(v.get("category", "")).endswith(it["cat"]) \
-            and (it["at"] and str(v.get("published", "")).startswith(it["at"]) or (not it["at"] and (v.get("imgs") or 0) >= len(imgs)))
+            and (it["at"] and str(v.get("published", "")).startswith(it["at"]) or (not it["at"] and (v.get("imgs") or 0) >= n_figs))
         if not ok:
             raise Stop(UNVERIFIED, f"저장했지만 확인 실패 ({json.dumps(v, ensure_ascii=False)[:200]}) — 재시도 금지")
         clicked, keep_tab = False, False
