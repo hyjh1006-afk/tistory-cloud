@@ -118,6 +118,27 @@ def sync_photos(max_wait: int = 180) -> bool:
     return opened
 
 
+def warn_if_phone_not_uploading(days: float = 2.0) -> None:
+    """맥 보관함의 가장 최근 사진이 며칠째 그대로면 폰 → iCloud 업로드가 멈춘 것(11/23 실측: 맥 동기화는 정상, 받을 게 0).
+    맥에선 못 고친다 — 대표님 텔레그램으로 폰에서 확인할 곳을 알린다(tg-alert 가 같은 문구 6시간 1회로 거른다)."""
+    try:
+        newest = sqlite3.connect(f"file:{DB}?mode=ro", uri=True).execute(
+            "select max(ZADDEDDATE) from ZASSET where ZTRASHEDSTATE=0").fetchone()[0]
+    except sqlite3.Error:
+        return
+    if newest is None:
+        return
+    age_d = (time.time() - (newest + 978307200)) / 86400
+    if age_d < days:
+        return
+    since = time.strftime("%m/%d %H:%M", time.localtime(newest + 978307200))
+    print(f"WARN\t폰 사진이 {since} 뒤로 맥에 안 들어옴({age_d:.0f}일) — 폰의 iCloud 사진 업로드 확인 필요")
+    msg = (f"📷 [맛집 후기] 폰 사진이 {since} 뒤로 iCloud 에 안 올라와요(맥은 정상 동기화). "
+           "폰 사진 앱 → 보관함 맨 아래 상태(일시 정지·저전력·저장 공간)를 보고 「재개」, "
+           "LTE 에서도 올리려면 설정 → 사진 → 셀룰러 데이터 켜기.")
+    subprocess.run([str(Path.home() / ".claude/tools/tg-alert.sh"), msg], capture_output=True, timeout=60)
+
+
 def quit_photos() -> None:
     subprocess.run(["osascript", "-e", 'tell application "Photos" to quit'], capture_output=True, timeout=30)
 
@@ -175,6 +196,8 @@ def psi_tags(uuids: list[str]) -> dict[str, dict]:
 def cmd_scan(a) -> int:
     st = load_state()
     opened = sync_photos() if not a.no_sync else False
+    if not a.no_sync:
+        warn_if_phone_not_uploading()
     try:
         con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
         q = ("select ZUUID, ZDATECREATED, ZADDEDDATE, ZLATITUDE, ZLONGITUDE, ZFILENAME, ZKINDSUBTYPE from ZASSET "
