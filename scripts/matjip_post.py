@@ -403,7 +403,7 @@ def run(path: str, dry: bool) -> int:
             time.sleep(0.5)
         if not tid:
             raise Stop(ASIDE_DOWN, "작업 탭을 못 열었음")
-        pf = pw.preflight(tid, [{"key": "post", "title": it["title"], "cat": it["cat"]}])
+        pf = pw.ensure_login(tid, lambda: pw.preflight(tid, [{"key": "post", "title": it["title"], "cat": it["cat"]}]))
         if not pf.get("login"):
             raise Stop(LOGIN, f"로그인 필요 ({pf.get('href') or pf.get('why')})")
         if it["cat"] not in pf.get("cats", []):
@@ -513,6 +513,8 @@ def run(path: str, dry: bool) -> int:
         code = exc.code
         log(f"✗ [{exc.code}] {exc.msg}")
         notify(f"[{exc.code}] {exc.msg}")
+        if exc.code == LOGIN:
+            pw.login_alert("맛집 후기 발행", exc.msg)
     except Exception as exc:
         import traceback
         code = UNVERIFIED if clicked else GATE

@@ -93,6 +93,84 @@ def notify(msg: str) -> None:
     )
 
 
+# ── 로그인 풀림 대비 (대표님 2026-11-23: 「로그인 창 뜨면 지가 카카오로 로그인 눌러서 로그인하고 작업해야하자나
+#    글고 만약 안됐다 할지라도 나항테 텔레그램 와야하자나」) ─────────────────────────────────────────────
+def kakao_relogin(tid: str) -> dict:
+    """작업 탭에서 티스토리 「카카오계정으로 로그인」 → 카카오 간편로그인 저장 계정을 누른다. 비밀번호칸이 뜨면 멈춘다."""
+    body = attach_js(tid) + f"""
+const BACK = {json.dumps(BLOG + "/manage/posts/")};
+if (!/auth\\/login|accounts\\.kakao\\.com/.test(P.url())) {{ await P.goto('https://www.tistory.com/auth/login').catch(() => null); await sleep(2000); }}
+for (let step = 0; step < 6; step++) {{
+  const u = P.url();
+  const host = (() => {{ try {{ return new URL(u).hostname; }} catch (e) {{ return ''; }} }})();   // 카카오 주소의 continue= 안에도 tistory.com 이 있다
+  if (/(^|\\.)tistory\\.com$/.test(host) && !/auth\\/login/.test(u)) {{
+    if (!/\\/manage/.test(u)) {{ await P.goto(BACK).catch(() => null); await sleep(2500); }}
+    return {{ok: /\\/manage/.test(P.url()) && !/auth\\/login/.test(P.url()), href: P.url(), step}};
+  }}
+  if (await P.locator('input[type=password]').first().isVisible().catch(() => false)) return {{ok:false, why:'password', href:u}};
+  // 실물(11/23): 티스토리 「카카오계정으로 로그인」 → accounts.kakao.com/login/simple 에 저장 계정 a.wrap_profile(이메일·이름)
+  // 바로 옆에 「간편로그인 계정 삭제」 버튼이 있다 — 삭제가 들어간 건 절대 누르지 않는다(누르면 대표님만 복구 가능).
+  let r = {{clicked:false}};
+  const tryClick = async (loc, label) => {{
+    if (r.clicked) return;
+    const n = await loc.count().catch(() => 0);
+    for (let i = 0; i < n; i++) {{
+      const el = loc.nth(i);
+      const t = ((await el.innerText().catch(() => '')) || '').replace(/\\s+/g, ' ');
+      if (/삭제|새로운 계정|다른 계정/.test(t) || !(await el.isVisible().catch(() => false))) continue;
+      await el.click({{timeout: 5000}}).then(() => {{ r = {{clicked:true, label}}; }}).catch(() => null);
+      if (r.clicked) return;
+    }}
+  }};
+  if (/tistory\\.com$/.test(host)) await tryClick(P.locator('a,button').filter({{hasText: /카카오\\s?계정으로 로그인/}}), 'tistory-kakao');
+  if (/kakao\\.com$/.test(host)) {{
+    await tryClick(P.locator('a.wrap_profile').filter({{hasText: /@/}}), 'kakao-saved-account');
+    await tryClick(P.locator('button,a').filter({{hasText: /^\\s*(계속하기|동의하고 계속하기)\\s*$/}}), 'kakao-continue');
+  }}
+  if (!r.clicked) return {{ok:false, why:'버튼 없음', href:u, page:((await P.evaluate(() => document.body.innerText).catch(() => '')) || '').replace(/[^@\\s]+@[^\\s]+/g, '<email>').slice(0, 160)}};
+  await sleep(3500);
+}}
+return {{ok:false, why:'6단계 안에 못 돌아옴', href:P.url()}};
+"""
+    try:
+        res, _ = repl(body, timeout=90)
+    except Stop as exc:
+        return {"ok": False, "why": exc.msg}
+    return res
+
+
+def ensure_login(tid: str, check):
+    """check() 가 login:false 면 카카오 간편로그인을 한 번 해 보고 다시 check(). 그래도 아니면 Stop(LOGIN)."""
+    r = check()
+    if r.get("login") or r.get("error"):
+        return r
+    log(f"  · 로그인 풀림({r.get('href') or r.get('why')}) → 카카오 간편로그인 시도")
+    rl = kakao_relogin(tid)
+    log(f"  · 재로그인: {json.dumps(rl, ensure_ascii=False)[:240]}")
+    if rl.get("ok"):
+        r = check()
+        if r.get("login"):
+            log("  ✓ 다시 로그인됨 — 이어서 진행")
+            return r
+    why = "비밀번호를 물어봄(간편로그인 정보가 지워짐)" if rl.get("why") == "password" else (rl.get("why") or "재확인 실패")
+    raise Stop(LOGIN, f"로그인 풀림 — 카카오 간편로그인 실패: {why}")
+
+
+def alert_owner(text: str) -> None:
+    """대표님 텔레그램(CHACAP 봇)으로 한 줄. 실패하면 맥 알림만."""
+    try:
+        import chacap
+        chacap.Tg().send(text)
+        log("  · 텔레그램으로 알림 보냄")
+    except BaseException as exc:  # noqa: BLE001 — 키체인 없음(SystemExit) 포함, 알림 실패가 본 작업을 막지 않게
+        log(f"  · 텔레그램 알림 실패: {exc}")
+        notify(text)
+
+
+def login_alert(where: str, msg: str) -> None:
+    alert_owner(f"🔑 티스토리 {where}: {msg}. Aside 에서 티스토리(카카오) 로그인 한 번 부탁드려요 — 남은 글은 다음 회차가 이어서 올려요.")
+
+
 # ── Aside ────────────────────────────────────────────────────────────────
 def cdp_list() -> list[dict]:
     with urllib.request.urlopen(CDP + "/json/list", timeout=8) as r:
@@ -721,7 +799,7 @@ def run(args) -> int:
         if not tid:
             raise Stop(ASIDE_DOWN, "작업 탭을 못 열었음")
 
-        pf = preflight(tid, items)
+        pf = ensure_login(tid, lambda: preflight(tid, items))
         if pf.get("error"):
             raise Stop(GATE, "사전 점검 오류: " + pf["error"])
         if not pf.get("login"):
@@ -847,6 +925,8 @@ def run(args) -> int:
         code = exc.code
         log(f"✗ [{exc.code}] {exc.msg}")
         notify(f"[{exc.code}] {exc.msg}")
+        if exc.code == LOGIN:
+            login_alert("괴담 발행", exc.msg)
     except Exception as exc:
         import traceback
         code = UNVERIFIED if clicked else GATE
