@@ -1,3 +1,6 @@
+## 2026-11-23
+- [수집 실패] 15시 괴담 회차: 두 줄·단편 둘 다 「Reddit 정책/차단」. 로그상 **www RSS 가 hot/new(두 줄)·hot/top(단편)에 404**, 나머지 www 주소 429, old 403, 프록시 폴백도 실패. 10분 쉬고 재시도해도 같음 → 이번 회차 0편(대기 목록 비어 있음). www 404 가 계속되면 RSS 주소 형식이 바뀐 것인지 확인 필요(브라우저 탭 `fetch("/r/<sub>/new.json")` 폴백 후보).
+
 ## 2026-11-17
 - [수집] 단편(nosleep) 수집이 계속 「Reddit 정책/차단」으로 실패 → 원인: **old.reddit.com RSS 가 비로그인 요청에 403/302**. 단편은 old 주소 두 개(hot·new)를 먼저 시도해 두 번 막히면 「IP 차단」으로 보고 www 를 시도도 안 하고 프록시로 넘어갔다(두 줄은 두 번째 주소가 www 라 살아남음). → `default_rss_urls` 를 **www 먼저, old 는 맨 끝**으로, old 의 403 은 차단 신호로 안 셈. 수정 뒤 www hot 100건 수집 성공.
 - [수집] 프록시 폴백도 죽어 있었다: allorigins 가 깨진 XML 을 주면 `ParseError`(SyntaxError 계열, ValueError 아님)가 안 잡혀 rss2json 까지 못 감 → except 에 SyntaxError 추가.
