@@ -12,6 +12,7 @@ from .json_store import read_json, write_json
 from .paths import REDDIT_DAILY_PATH
 from .reddit_errors import REDDIT_COLLECT_FAILED_MSG, RedditCollectError
 from .reddit_proxy import fetch_via_proxies
+from .reddit_aside import fetch_via_aside
 from .reddit_rss import fetch_via_rss, is_blocked_response, parse_rss_posts
 
 
@@ -148,6 +149,17 @@ def collect_reddit_posts(
     posts: list[dict[str, Any]] = []
     rss_errors: list[str] = []
     blocked_count = 0
+
+    # 11/23~ 레딧 RSS 가 없어졌다(브라우저 안에서도 404) → Aside 화면 수집이 1순위, RSS·프록시는 예비
+    try:
+        posts = fetch_via_aside(subreddit, sort, limit=pool_cap, logger=logger)
+    except Exception as exc:
+        rss_errors.append(f"aside: {exc}")
+        if logger:
+            logger.warning("Aside 화면 수집 실패: %s", exc)
+    if posts:
+        _mark_collect_success(subreddit)
+        return posts[:pool_cap]
 
     for idx, url in enumerate(urls):
         if idx > 0:
