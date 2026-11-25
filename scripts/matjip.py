@@ -339,7 +339,8 @@ def match_answers(st: dict, msgs: list[dict]) -> dict[str, list[dict]]:
         vid = by_msg.get(rid)
         if not vid and rid is None:
             # 답장이 아닌 일반 메시지: 그 시각 직전에 질문을 받은 방문이 하나뿐일 때만 그 방문 답으로 본다
-            cands = [v for v in asked if any(a["date"] <= m["date"] for a in v["asks"])]
+            # 11/25: 질문 22시간 뒤 로그인 알림에 보낸 「로그인했어」가 맛집 답으로 붙었다 → 질문 뒤 6시간 안의 일반 메시지만
+            cands = [v for v in asked if any(a["date"] <= m["date"] <= a["date"] + 6 * 3600 for a in v["asks"])]
             cands.sort(key=lambda v: max(a["date"] for a in v["asks"]))
             if cands and len([v for v in cands if v["status"] == "asked"]) <= 1:
                 vid = cands[-1]["id"]
