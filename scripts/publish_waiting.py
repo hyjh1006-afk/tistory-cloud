@@ -152,7 +152,7 @@ def ensure_login(tid: str, check):
         if r.get("login"):
             log("  ✓ 다시 로그인됨 — 이어서 진행")
             return r
-    why = "비밀번호를 물어봄(간편로그인 정보가 지워짐)" if rl.get("why") == "password" else (rl.get("why") or "재확인 실패")
+    why = "카카오가 비밀번호를 다시 물어봄" if rl.get("why") == "password" else (rl.get("why") or "재확인 실패")
     raise Stop(LOGIN, f"로그인 풀림 — 카카오 간편로그인 실패: {why}")
 
 
