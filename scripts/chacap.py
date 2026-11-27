@@ -289,6 +289,23 @@ return {{filled: true, how, after, msg, clickErr, enabled}};
     return repl(body)[0]
 
 
+def reload_frame(tid, match) -> dict:
+    """11/27 실측: 캡챠 iframe 이 「Bad Request」만 띄우고 입력칸이 없었다(문제를 못 받아 옴).
+    iframe 주소를 다시 불러 문제를 새로 받는다 — 사람이 풀 문제를 다시 받아 오는 것뿐, 우회가 아니다."""
+    body = attach_js(tid, match) + """
+const src = await P.evaluate((sel) => {
+  const f = document.querySelector(sel);
+  if (!f) return '';
+  const s = f.src; f.src = 'about:blank'; setTimeout(() => { f.src = s; }, 300);
+  return s;
+}, IFR);
+if (!src) return {ok: false};
+await sleep(4000);
+return {ok: true, src: src.replace(/([?&][^=]+=)[^&]{12,}/g, '$1…').slice(0, 200)};
+"""
+    return repl(body)[0]
+
+
 def refresh(tid, match) -> None:
     body = attach_js(tid, match) + """
 const fl = P.frameLocator(IFR).first();
@@ -376,6 +393,13 @@ def cmd_relay(a) -> int:
             return ASIDE_ERR if info["error"] != "notab" else CANT
         log(f"[{rnd}회] 캡챠 iframe={info.get('found')}/{info.get('visible')} 입력칸 {info.get('inputs')}개 · 문구: {info.get('text', '')[:80]}")
         relayable = info.get("visible") and (info.get("inputs") or 0) > 0
+        for k in range(2):   # 문제 창이 「Bad Request」 등으로 빈 채 뜨면 두 번까지 다시 불러 본다
+            if relayable or not info.get("visible"):
+                break
+            log(f"  · 입력칸 없음 — 캡챠 창 다시 불러옴({k + 1}회): {reload_frame(a.tid, a.match)}")
+            info, jpg = capture(a.tid, a.match)
+            log(f"  · 다시 본 캡챠: 입력칸 {info.get('inputs')}개 · 문구: {info.get('text', '')[:80]}")
+            relayable = info.get("visible") and (info.get("inputs") or 0) > 0
         if not relayable:
             if jpg:
                 safe(tg.photo, jpg, f"⚠️ {label} — 캡챠로 멈췄는데 입력칸을 못 찾았습니다. 맥에서 직접 풀어 주세요.")
