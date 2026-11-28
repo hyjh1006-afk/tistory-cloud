@@ -154,7 +154,8 @@ def generate_nosleep_prompt(logger: logging.Logger) -> dict[str, Any]:
     reddit_config.update(
         {
             "subreddit": "nosleep",
-            "sort": "hot",
+            "sort": "top",          # 11/28~ 이번 주 추천 1위(안 쓴 것 중)
+            "time_filter": "week",
             "fetch_limit": 1,
         }
     )

@@ -22,11 +22,8 @@ const __t = await openTab(__u);
 let __res;
 try {
   await sleep(4000);
-  for (let i = 0; i < %(scrolls)d; i++) {
-    await __t.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await sleep(1800);
-  }
-  __res = await __t.evaluate(() => [...document.querySelectorAll('shreddit-post')].map(p => ({
+  // 11/28 실측: 레딧은 내릴수록 위쪽 글을 화면에서 지운다 → 내리기 전마다 모아 둔다(안 그러면 top 1~25위가 빠진다).
+  const __grab = () => __t.evaluate(() => [...document.querySelectorAll('shreddit-post')].map(p => ({
     id: p.getAttribute('id') || '',
     title: p.getAttribute('post-title') || '',
     permalink: p.getAttribute('permalink') || '',
@@ -39,6 +36,14 @@ try {
     stickied: p.hasAttribute('stickied') || p.hasAttribute('pinned'),
     body: ((p.querySelector('[slot=text-body]') || {}).innerText || '').trim(),
   })));
+  const __all = new Map();
+  for (let i = 0; i <= %(scrolls)d; i++) {
+    for (const r of await __grab()) if (r.id && !__all.has(r.id)) __all.set(r.id, r);
+    if (i === %(scrolls)d) break;
+    await __t.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await sleep(1800);
+  }
+  __res = [...__all.values()];
 } catch (e) {
   __res = {error: String(e).slice(0, 300)};
 }
@@ -48,8 +53,10 @@ console.log('RESULT=' + JSON.stringify(__res));
 
 
 def fetch_via_aside(subreddit: str, sort: str = "new", *, limit: int = 150, scrolls: int = 4,
-                    logger: Any = None) -> list[dict[str, Any]]:
+                    time_filter: str = "week", logger: Any = None) -> list[dict[str, Any]]:
     url = f"https://www.reddit.com/r/{subreddit}/{sort or 'new'}/"
+    if sort == "top":  # 11/28 대표님 「그 주 글 중 젤 인기많은걸로」 → 이번 주 추천순
+        url += f"?t={time_filter or 'week'}"
     code = _JS % {"url": json.dumps(url), "scrolls": scrolls}
     try:
         p = subprocess.run([ASIDE, "repl", code], cwd="/tmp", capture_output=True, text=True, timeout=110)
@@ -95,6 +102,8 @@ def fetch_via_aside(subreddit: str, sort: str = "new", *, limit: int = 150, scro
         })
         if len(posts) >= limit:
             break
+    if sort == "top":   # 화면 순서를 믿지 않고 추천 수로 다시 줄 세운다
+        posts.sort(key=lambda x: x.get("score") or 0, reverse=True)
     if logger:
         logger.info("Aside 화면 수집: %s (%s건)", url, len(posts))
     return posts

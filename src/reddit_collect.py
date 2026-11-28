@@ -152,7 +152,8 @@ def collect_reddit_posts(
 
     # 11/23~ 레딧 RSS 가 없어졌다(브라우저 안에서도 404) → Aside 화면 수집이 1순위, RSS·프록시는 예비
     try:
-        posts = fetch_via_aside(subreddit, sort, limit=pool_cap, logger=logger)
+        posts = fetch_via_aside(subreddit, sort, limit=pool_cap,
+                                time_filter=reddit_config.get("time_filter", "week"), logger=logger)
     except Exception as exc:
         rss_errors.append(f"aside: {exc}")
         if logger:
