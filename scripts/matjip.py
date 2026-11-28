@@ -24,6 +24,8 @@
   clip <id> <n> [--start 초] [--len 초]
                          n번 영상을 소리 없는 반복 움짤(GIF, 폭 480, 최대 6초)로 → img/<id>_v<n>.gif — 본문에 사진처럼 넣는다
                          (대표님 11/22 「거기서 찍은 영상도 있으면 같이 올리려면」)
+  assign <id> <update_id...>  collect 의 UNMATCHED(답장 없이 온 답) 를 내용 보고 그 방문 답으로 붙인다. 맛집 답이 아니면 assign none <update_id>
+  rotate <id> <n> <deg>  n 번 사진이 누워 있으면 시계 방향 deg(90·180·270)로 돌려서 보내고 올린다(대표님 11/28 「회전돼있으면 알아서 돌려서」)
   posted <id> <주소>     올린 뒤 표시 + 사진 원본·내보낸 사본 삭제(대표님 11/13 「업로드 끝나면 용량 정리, 백업 없이」)
 """
 from __future__ import annotations
@@ -314,29 +316,90 @@ def cmd_ask(a) -> int:
     v = st["visits"][a.id]
     q = Path(a.questions).read_text(encoding="utf-8").strip()
     picks = [int(x) for x in a.photos.split(",")] if a.photos else list(range(1, min(4, len(v["uuids"])) + 1))
-    files = [derivative(v["uuids"][n - 1]) for n in picks if 0 < n <= len(v["uuids"])]
-    files = [f for f in files if f]
+    rot = v.get("rot", {})
+    files = [(derivative(v["uuids"][n - 1]), int(rot.get(str(n), 0))) for n in picks if 0 < n <= len(v["uuids"])]
+    files = [(f, r) for f, r in files if f]
     tg = tg_inbox.Tg()
+    photo_ids = []
     if files:
-        tg.media_group([strip_to_jpeg_bytes(f, 1024) for f in files])
+        sent = tg.media_group([strip_to_jpeg_bytes(f, 1024, r) for f, r in files])
+        photo_ids = [x.get("message_id") for x in (sent or []) if isinstance(x, dict) and x.get("message_id")]
     head = f"{Q_MARK} 맛집 후기 질문 · {v['from']}\n(이 메시지를 길게 눌러 「답장」으로 편하게 써 주세요. 여러 번 나눠 보내셔도 돼요)\n\n"
     m = tg.send(head + q)
-    v.setdefault("asks", []).append({"msg_id": m["message_id"], "at": now_kst().strftime("%Y-%m-%d %H:%M:%S"), "date": m["date"]})
+    v.setdefault("asks", []).append({"msg_id": m["message_id"], "photo_ids": photo_ids, "at": now_kst().strftime("%Y-%m-%d %H:%M:%S"), "date": m["date"]})
     v["status"] = "asked"
     save_state(st)
     print(f"ASKED {a.id} msg_id={m['message_id']} 사진 {len(files)}장")
     return 0
 
 
+def unmatched_answers(st: dict, msgs: list[dict]) -> list[dict]:
+    """답장이 아니라서 어느 방문 답인지 못 정한 일반 메시지(질문 뒤 48시간 안, 아직 어느 방문에도 안 붙은 것).
+    11/25: 질문 3개를 한꺼번에 보냈더니 대표님이 답장 없이 차례로 답했고, 쌀국수 답이 어디에도 안 붙어 버려졌다 →
+    11/28 같은 걸 또 물어 대표님이 화나심(「저번에 대답 다 했었는데 왜 또 물어보냐 … 기억을 하게 해놔야지」).
+    이제 버리지 않고 collect 가 UNMATCHED 로 보여 주고, 루틴이 내용을 읽어 `assign` 으로 붙인다."""
+    asked = [v for v in st["visits"].values() if v["status"] in ("asked", "answered", "posted") and v.get("asks")]
+    taken = {x["update_id"] for v in st["visits"].values() for x in v.get("answers", [])} | set(st.get("not_answers", []))
+    out = []
+    for m in msgs:
+        if not m.get("text") or m.get("used_by") or m["update_id"] in taken or (m.get("reply_to") or {}).get("message_id"):
+            continue
+        if len(m["text"].strip()) <= 2:          # 캡챠 답(한두 글자)은 맛집 답이 아니다
+            continue
+        cands = [v["id"] for v in asked if v["status"] != "posted" and any(a["date"] <= m["date"] <= a["date"] + 48 * 3600 for a in v["asks"])]
+        if cands:
+            out.append({**m, "cands": cands})
+    return out
+
+
+def cmd_assign(a) -> int:
+    st = load_state()
+    msgs = {m["update_id"]: m for m in tg_inbox.read_journal()}
+    if a.id == "none":                       # 맛집 답이 아닌 메시지 — 다시 UNMATCHED 로 안 띄운다
+        st.setdefault("not_answers", []).extend(a.uids)
+        save_state(st)
+        print(f"NOT-ANSWER {a.uids}")
+        return 0
+    v = st["visits"][a.id]
+    seen = {x["update_id"] for x in v.get("answers", [])}
+    for uid in a.uids:
+        m = msgs.get(uid)
+        if not m:
+            print(f"  ✗ 일지에 없는 메시지 {uid}")
+            return 1
+        if uid not in seen:
+            v.setdefault("answers", []).append({"update_id": uid, "date": m["date"], "text": m["text"]})
+    if v.get("answers") and v["status"] == "asked":
+        v["status"] = "answered"
+    save_state(st)
+    print(f"ASSIGNED {a.id} {a.uids} → 답 {len(v.get('answers', []))}개, {v['status']}")
+    return 0
+
+
 def match_answers(st: dict, msgs: list[dict]) -> dict[str, list[dict]]:
     asked = [v for v in st["visits"].values() if v["status"] in ("asked", "answered") and v.get("asks")]
     by_msg = {a["msg_id"]: v["id"] for v in asked for a in v["asks"]}
+    # 대표님은 질문 글이 아니라 같이 보낸 「사진」에 답장하기도 한다(11/25 쌀국수 — 사진 485 에 답장, 질문은 486 → 못 알아보고 3일 뒤 또 물음)
+    by_msg.update({pid: v["id"] for v in asked for a in v["asks"] for pid in a.get("photo_ids", [])})
+    # 이미 올린 방문까지 넣어야 그 방문 사진에 단 답장이 엉뚱한 다음 질문으로 넘어가지 않는다(11/28 아비꼬·사케 답이 쌀국수로 붙음)
+    every = [v for v in st["visits"].values() if v.get("asks")]
+    by_msg_all = {a["msg_id"]: v["id"] for v in every for a in v["asks"]}
+    by_msg_all.update({pid: v["id"] for v in every for a in v["asks"] for pid in a.get("photo_ids", [])})
+    ask_ids = sorted((a["msg_id"], v["id"]) for v in every for a in v["asks"])
+    open_ids = {v["id"] for v in asked}
     got: dict[str, list[dict]] = {}
     for m in msgs:
         if not m.get("text") or m.get("used_by"):
             continue
         rid = (m.get("reply_to") or {}).get("message_id")
-        vid = by_msg.get(rid)
+        vid = by_msg_all.get(rid)
+        if not vid and rid is not None:
+            # 사진 id 를 안 적어 둔 옛 질문: 사진 묶음은 질문 글 바로 앞 번호다 → 그 뒤 10번 안의 첫 질문
+            nxt = [(mid, x) for mid, x in ask_ids if 0 < mid - rid <= 10]
+            if nxt:
+                vid = nxt[0][1]
+        if vid and vid not in open_ids:          # 이미 올렸거나 건너뛴 방문의 답 — 다른 방문에 붙이지 않는다
+            continue
         if not vid and rid is None:
             # 답장이 아닌 일반 메시지: 그 시각 직전에 질문을 받은 방문이 하나뿐일 때만 그 방문 답으로 본다
             # 11/25: 질문 22시간 뒤 로그인 알림에 보낸 「로그인했어」가 맛집 답으로 붙었다 → 질문 뒤 6시간 안의 일반 메시지만
@@ -385,13 +448,20 @@ def cmd_collect(a) -> int:
             print(f"VISIT\t{v['id']}\t{v['status']}\t답 {len(v.get('answers', []))}개")
             for x in v.get("answers", []):
                 print("  ANSWER\t" + x["text"].replace("\n", " / "))
+    for m in unmatched_answers(st, tg_inbox.read_journal()):
+        when = dt.datetime.fromtimestamp(m["date"], KST).strftime("%m-%d %H:%M")
+        print(f"UNMATCHED\t{m['update_id']}\t{when}\t후보={','.join(m['cands'])}\t" + m["text"].replace("\n", " / ")[:300])
     return 0
 
 
-def strip_to_jpeg_bytes(src: str, max_px: int) -> bytes:
+def strip_to_jpeg_bytes(src: str, max_px: int, rot: int = 0) -> bytes:
+    """rot = 시계 방향 각도(90·180·270). 위에서 내려 찍은 음식 사진은 폰이 방향을 잘못 잡아 누운 채 저장되기도 한다
+    (11/25 쌀국수 — 보관함에서도 누워 보임, EXIF 로는 못 고침) → 루틴이 눈으로 보고 `rotate` 로 정한 값을 쓴다."""
     from io import BytesIO
     from PIL import Image, ImageOps
     im = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
+    if rot % 360:
+        im = im.rotate(-(rot % 360), expand=True)
     im.thumbnail((max_px, max_px))
     b = BytesIO()
     im.save(b, "JPEG", quality=88)          # exif 를 넘기지 않으니 위치·기기 정보가 안 따라간다
@@ -424,7 +494,7 @@ def cmd_export(a) -> int:
                 subprocess.run(["sips", "-s", "format", "jpeg", src, "--out", conv], capture_output=True)
                 src = conv
             dst = out / f"{a.id}_{n:02d}.jpg"
-            dst.write_bytes(strip_to_jpeg_bytes(src, 1400))
+            dst.write_bytes(strip_to_jpeg_bytes(src, 1400, int(v.get("rot", {}).get(str(n), 0))))
             paths.append(str(dst))
     finally:
         shutil.rmtree(raw, ignore_errors=True)
@@ -616,6 +686,19 @@ def cmd_map(a) -> int:
     return 0
 
 
+def cmd_rotate(a) -> int:
+    """사진 n 번을 시계 방향 deg 도 돌려 쓴다(ask 로 보내는 사진·export 사본 둘 다). 이미 export 한 사본도 다시 만든다."""
+    st = load_state()
+    v = st["visits"][a.id]
+    v.setdefault("rot", {})[str(a.n)] = a.deg % 360
+    save_state(st)
+    dst = vdir(a.id) / "img" / f"{a.id}_{a.n:02d}.jpg"
+    if dst.exists():
+        print(f"  · 이미 내보낸 사본이 있음 → export {a.id} {a.n} 로 다시 만드세요")
+    print(f"ROT {a.id} {a.n} {a.deg % 360}")
+    return 0
+
+
 def cmd_status(_a) -> int:
     st = load_state()
     print(f"CHECKPOINT={st['checkpoint']}")
@@ -652,6 +735,8 @@ def main() -> int:
     s = sub.add_parser("status"); s.set_defaults(f=cmd_status)
     s = sub.add_parser("skip"); s.add_argument("id"); s.add_argument("why", nargs="*"); s.set_defaults(f=cmd_skip)
     s = sub.add_parser("ask"); s.add_argument("id"); s.add_argument("questions"); s.add_argument("--photos"); s.set_defaults(f=cmd_ask)
+    s = sub.add_parser("assign"); s.add_argument("id", help="방문 id, 맛집 답이 아니면 none"); s.add_argument("uids", type=int, nargs="+"); s.set_defaults(f=cmd_assign)
+    s = sub.add_parser("rotate"); s.add_argument("id"); s.add_argument("n", type=int); s.add_argument("deg", type=int, help="시계 방향 90·180·270"); s.set_defaults(f=cmd_rotate)
     s = sub.add_parser("collect"); s.add_argument("--wait", type=float, default=0); s.set_defaults(f=cmd_collect)
     s = sub.add_parser("export"); s.add_argument("id"); s.add_argument("nums", type=int, nargs="+"); s.set_defaults(f=cmd_export)
     s = sub.add_parser("posted"); s.add_argument("id"); s.add_argument("url"); s.set_defaults(f=cmd_posted)

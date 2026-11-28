@@ -75,7 +75,11 @@ def read_journal(raw: bool = False) -> list[dict]:
 def is_food_reply(msg: dict) -> bool:
     """맛집 질문(🍽 로 시작)에 단 답장 — CHACAP 은 이걸 캡챠 답으로 쓰지 않는다."""
     r = msg.get("reply_to_message") or {}
-    return (r.get("text") or r.get("caption") or "").startswith("🍽")
+    head = r.get("text") or r.get("caption") or ""
+    if head.startswith("🍽"):
+        return True
+    # 맛집 질문과 같이 보낸 음식 사진(설명 없음)에 단 답장도 맛집 답이다 — 캡챠 사진은 설명이 🔐 로 시작한다(11/25 실측)
+    return bool(r.get("photo")) and not head.startswith("🔐")
 
 
 class Tg:
